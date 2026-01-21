@@ -1,0 +1,35 @@
+# TEMPLATE - copy to src/main/resources/application.properties and fill secrets locally
+
+# Server
+server.port=8080
+
+# Datasource (Postgres)
+spring.datasource.url=jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:tableau_meta}
+spring.datasource.username=${DB_USER:postgres}
+spring.datasource.password=${DB_PASS:postgres}
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.properties.hibernate.format_sql=true
+
+# Flyway
+spring.flyway.enabled=true
+spring.flyway.locations=classpath:db/migration
+
+# Tableau and auth settings
+# Set TABLEAU_AUTH_MODE to PAT or BASIC
+tableau.api-version=${TABLEAU_API_VERSION:3.17}
+tableau.base-url=${TABLEAU_BASE_URL:https://<TABLEAU_HOST>}
+tableau.auth-mode=${TABLEAU_AUTH_MODE:PAT}
+
+# If using PAT
+tableau.pat.name=${TABLEAU_PAT_NAME:}
+tableau.pat.secret=${TABLEAU_PAT_SECRET:}
+
+# If using username/password
+tableau.username=${TABLEAU_USERNAME:}
+tableau.password=${TABLEAU_PASSWORD:}
+
+# Optional site id (contentUrl or LUID depending on usage)
+tableau.default-site-id=${TABLEAU_SITE_ID:}
+
+# Logging
+logging.level.com.example.tableau=INFO
