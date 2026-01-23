@@ -1,0 +1,139 @@
+package com.example.tableau.entity;
+
+import com.example.tableau.enums.StatusFlag;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Entity representing a Tableau Workbook.
+ */
+@Entity
+@Table(name = "tableau_workbook",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"assetId", "siteId"}))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TableauWorkbook {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    /**
+     * Unique identifier from Tableau (LUID)
+     */
+    @Column(name = "asset_id", nullable = false, length = 128)
+    private String assetId;
+
+    /**
+     * Site ID for composite unique constraint
+     */
+    @Column(name = "site_id", length = 128)
+    private String siteId;
+
+    /**
+     * Name of the workbook
+     */
+    @Column(name = "name", nullable = false, length = 512)
+    private String name;
+
+    /**
+     * Description of the workbook
+     */
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    /**
+     * Owner username
+     */
+    @Column(name = "owner", length = 256)
+    private String owner;
+
+    /**
+     * Owner ID
+     */
+    @Column(name = "owner_id", length = 128)
+    private String ownerId;
+
+    /**
+     * Creation date in Tableau
+     */
+    @Column(name = "tableau_created_at")
+    private LocalDateTime tableauCreatedAt;
+
+    /**
+     * Last modified date in Tableau
+     */
+    @Column(name = "tableau_updated_at")
+    private LocalDateTime tableauUpdatedAt;
+
+    /**
+     * Content URL for the workbook
+     */
+    @Column(name = "content_url", length = 1024)
+    private String contentUrl;
+
+    /**
+     * Status flag for change tracking
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_flag", nullable = false, length = 20)
+    @Builder.Default
+    private StatusFlag statusFlag = StatusFlag.NEW;
+
+    /**
+     * Hash of metadata for change detection
+     */
+    @Column(name = "metadata_hash", length = 128)
+    private String metadataHash;
+
+    /**
+     * Timestamp when the record was created
+     */
+    @Column(name = "created_timestamp", nullable = false)
+    private LocalDateTime createdTimestamp;
+
+    /**
+     * Timestamp when the record was last updated
+     */
+    @Column(name = "last_updated_timestamp", nullable = false)
+    private LocalDateTime lastUpdatedTimestamp;
+
+    /**
+     * Parent project
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_fk_id")
+    private TableauProject project;
+
+    /**
+     * List of worksheets in this workbook
+     */
+    @OneToMany(mappedBy = "workbook", cascade = CascadeType.ALL, orphanRemoval = false)
+    @Builder.Default
+    private List<TableauWorksheet> worksheets = new ArrayList<>();
+
+    /**
+     * List of data sources used by this workbook
+     */
+    @OneToMany(mappedBy = "workbook", cascade = CascadeType.ALL, orphanRemoval = false)
+    @Builder.Default
+    private List<TableauDataSource> dataSources = new ArrayList<>();
+
+    @PrePersist
+    protected void onCreate() {
+        createdTimestamp = LocalDateTime.now();
+        lastUpdatedTimestamp = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        lastUpdatedTimestamp = LocalDateTime.now();
+    }
+}
