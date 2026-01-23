@@ -19,21 +19,30 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class WebClientConfig {
 
+    /** Maximum in-memory buffer size for responses (16 MB) */
+    private static final int MAX_IN_MEMORY_SIZE_BYTES = 16 * 1024 * 1024;
+    
+    /** Connection timeout in milliseconds */
+    private static final int CONNECT_TIMEOUT_MS = 30000;
+    
+    /** Read/Write timeout in seconds */
+    private static final int IO_TIMEOUT_SECONDS = 60;
+
     /**
      * Configure WebClient with proper timeouts and buffer sizes.
      */
     @Bean
     public WebClient.Builder webClientBuilder() {
         HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
-                .responseTimeout(Duration.ofSeconds(60))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MS)
+                .responseTimeout(Duration.ofSeconds(IO_TIMEOUT_SECONDS))
                 .doOnConnected(conn -> conn
-                        .addHandlerLast(new ReadTimeoutHandler(60, TimeUnit.SECONDS))
-                        .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
+                        .addHandlerLast(new ReadTimeoutHandler(IO_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                        .addHandlerLast(new WriteTimeoutHandler(IO_TIMEOUT_SECONDS, TimeUnit.SECONDS)));
 
         // Increase buffer size for large GraphQL responses
         ExchangeStrategies strategies = ExchangeStrategies.builder()
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(16 * 1024 * 1024)) // 16MB
+                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(MAX_IN_MEMORY_SIZE_BYTES))
                 .build();
 
         return WebClient.builder()

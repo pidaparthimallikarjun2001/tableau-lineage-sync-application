@@ -345,7 +345,7 @@ public class DataSourceService extends BaseAssetService {
     private int[] processCustomSQLTable(JsonNode sqlTable, String siteId, Set<String> processedAssetIds) {
         int newCount = 0, updatedCount = 0, unchangedCount = 0;
         
-        String assetId = "custom-sql-" + sqlTable.path("id").asText();
+        String assetId = CUSTOM_SQL_PREFIX + sqlTable.path("id").asText();
         String name = sqlTable.path("name").asText();
         String customSqlQuery = sqlTable.path("query").asText(null);
         String connectionType = sqlTable.path("connectionType").asText(null);

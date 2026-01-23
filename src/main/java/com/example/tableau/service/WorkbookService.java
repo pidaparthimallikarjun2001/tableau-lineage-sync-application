@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -224,22 +223,6 @@ public class WorkbookService extends BaseAssetService {
         List<TableauWorkbook> workbooks = workbookRepository.findByProjectDbId(projectId);
         for (TableauWorkbook workbook : workbooks) {
             softDeleteWorkbookAndChildren(workbook.getId());
-        }
-    }
-
-    private LocalDateTime parseDateTime(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_DATE_TIME);
-        } catch (Exception e) {
-            try {
-                return LocalDateTime.parse(dateStr.substring(0, 19), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-            } catch (Exception e2) {
-                log.warn("Could not parse date: {}", dateStr);
-                return null;
-            }
         }
     }
 }

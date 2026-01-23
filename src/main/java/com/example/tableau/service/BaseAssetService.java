@@ -2,12 +2,15 @@ package com.example.tableau.service;
 
 import com.example.tableau.dto.IngestionResult;
 import com.example.tableau.enums.StatusFlag;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 
 /**
@@ -16,6 +19,15 @@ import java.util.HexFormat;
 public abstract class BaseAssetService {
     
     protected final Logger log = LoggerFactory.getLogger(getClass());
+    
+    /** Delimiter used for composite keys */
+    protected static final String COMPOSITE_KEY_DELIMITER = "|";
+    
+    /** Custom SQL asset ID prefix */
+    protected static final String CUSTOM_SQL_PREFIX = "custom-sql-";
+    
+    /** ISO date time format length for parsing */
+    private static final int ISO_LOCAL_DATE_TIME_LENGTH = 19;
 
     /**
      * Generate a hash of the metadata for change detection.
@@ -26,7 +38,7 @@ public abstract class BaseAssetService {
             StringBuilder sb = new StringBuilder();
             for (String field : fields) {
                 sb.append(field != null ? field : "");
-                sb.append("|");
+                sb.append(COMPOSITE_KEY_DELIMITER);
             }
             byte[] hash = digest.digest(sb.toString().getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
@@ -84,5 +96,51 @@ public abstract class BaseAssetService {
      */
     protected String safeStringOrDefault(String value, String defaultValue) {
         return (value != null && !value.trim().isEmpty()) ? value.trim() : defaultValue;
+    }
+    
+    /**
+     * Extract asset ID from a JSON node, preferring luid over id.
+     * This handles the common pattern in Tableau APIs where assets have both luid and id fields.
+     */
+    protected String extractAssetId(JsonNode node) {
+        if (node == null || node.isMissingNode()) {
+            return null;
+        }
+        String luid = node.path("luid").asText(null);
+        if (luid != null && !luid.isEmpty()) {
+            return luid;
+        }
+        return node.path("id").asText(null);
+    }
+    
+    /**
+     * Create a composite key from multiple parts.
+     */
+    protected String createCompositeKey(String... parts) {
+        return String.join(COMPOSITE_KEY_DELIMITER, parts);
+    }
+    
+    /**
+     * Parse date time string from Tableau API response.
+     * Handles ISO 8601 format and common variations.
+     */
+    protected LocalDateTime parseDateTime(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_DATE_TIME);
+        } catch (Exception e) {
+            try {
+                // Try parsing with just the date/time portion (truncate timezone if present)
+                String truncated = dateStr.length() > ISO_LOCAL_DATE_TIME_LENGTH 
+                        ? dateStr.substring(0, ISO_LOCAL_DATE_TIME_LENGTH) 
+                        : dateStr;
+                return LocalDateTime.parse(truncated, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            } catch (Exception e2) {
+                log.warn("Could not parse date: {}", dateStr);
+                return null;
+            }
+        }
     }
 }
