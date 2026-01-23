@@ -1,0 +1,326 @@
+# Tableau Lineage Sync Application
+
+A comprehensive Java Spring Boot application that integrates with Tableau's REST and GraphQL (Metadata) APIs to extract, store, and track changes in Tableau metadata and lineage information.
+
+## Features
+
+### Core Functionality
+
+1. **Initial Data Ingestion**
+   - Creates database tables for each Tableau asset type
+   - Ingests all Tableau metadata and lineage information on first run
+
+2. **Incremental Updates and Change Tracking**
+   - Compares current Tableau response with existing database data
+   - Updates status flags to track changes:
+     - `NEW`: Records found in Tableau not in database
+     - `UPDATED`: Existing records with metadata changes
+     - `DELETED`: Records in database no longer in Tableau (soft delete)
+     - `ACTIVE`: Records synchronized with no changes
+
+3. **Cascading Soft Deletion**
+   - When a parent asset is marked as DELETED, all child assets are recursively soft-deleted
+   - Hierarchy: Server → Site → Project → Workbook → Worksheet → Report Attributes
+   - Data Sources are linked to Workbooks for embedded sources
+
+4. **REST API with Swagger UI**
+   - Comprehensive API endpoints for each asset type
+   - Interactive Swagger documentation at `/swagger-ui.html`
+   - Two primary operations per asset type:
+     - **Fetch**: Retrieve data from Tableau (does not persist)
+     - **Ingest**: Fetch and persist with change tracking
+
+### Supported Tableau Assets
+
+| Asset Type | Description |
+|------------|-------------|
+| **Server** | Tableau Server instance details |
+| **Site** | Tableau Sites within a server |
+| **Project** | Projects within a site (supports nested projects) |
+| **Workbook** | Workbooks with owner and metadata |
+| **Worksheet** | Sheets within workbooks |
+| **Report Attribute** | Sheet field instances with lineage and formulas |
+| **Data Source** | Published, embedded, and custom SQL data sources |
+
+### Data Source Types
+
+- **DIRECT_IMPORT**: Direct database table connections
+- **CUSTOM_SQL**: Custom SQL queries defining data sources
+- **PUBLISHED**: Published/shared data sources
+- **FILE_BASED**: File-based sources (Excel, CSV, etc.)
+
+## Technology Stack
+
+- **Java 17**
+- **Spring Boot 3.2.0**
+- **Spring Data JPA** with Hibernate
+- **H2 Database** (local development)
+- **MariaDB** (production)
+- **WebFlux WebClient** for async HTTP
+- **Resilience4j** for circuit breaker/retry
+- **springdoc-openapi** for Swagger UI
+- **Lombok** for boilerplate reduction
+
+## Project Structure
+
+```
+src/main/java/com/example/tableau/
+├── TableauLineageSyncApplication.java  # Main application class
+├── config/                              # Configuration classes
+│   ├── TableauApiConfig.java           # Tableau API settings
+│   ├── WebClientConfig.java            # HTTP client config
+│   └── OpenApiConfig.java              # Swagger config
+├── controller/                          # REST controllers
+│   ├── TableauSiteController.java      # Auth & site switching
+│   ├── ServerController.java
+│   ├── SiteController.java
+│   ├── ProjectController.java
+│   ├── WorkbookController.java
+│   ├── WorksheetController.java
+│   ├── ReportAttributeController.java
+│   └── DataSourceController.java
+├── dto/                                 # Data transfer objects
+│   ├── IngestionResult.java
+│   ├── SiteSwitchRequest.java
+│   ├── SiteSwitchResponse.java
+│   └── AssetDto.java
+├── entity/                              # JPA entities
+│   ├── TableauServer.java
+│   ├── TableauSite.java
+│   ├── TableauProject.java
+│   ├── TableauWorkbook.java
+│   ├── TableauWorksheet.java
+│   ├── ReportAttribute.java
+│   └── TableauDataSource.java
+├── enums/                               # Enumerations
+│   ├── StatusFlag.java                 # NEW, UPDATED, DELETED, ACTIVE
+│   └── SourceType.java                 # DIRECT_IMPORT, CUSTOM_SQL, etc.
+├── exception/                           # Exception handling
+│   ├── TableauApiException.java
+│   ├── DataIngestionException.java
+│   ├── ResourceNotFoundException.java
+│   └── GlobalExceptionHandler.java
+├── repository/                          # JPA repositories
+│   ├── TableauServerRepository.java
+│   ├── TableauSiteRepository.java
+│   ├── TableauProjectRepository.java
+│   ├── TableauWorkbookRepository.java
+│   ├── TableauWorksheetRepository.java
+│   ├── ReportAttributeRepository.java
+│   └── TableauDataSourceRepository.java
+└── service/                             # Business logic
+    ├── BaseAssetService.java           # Common service methods
+    ├── TableauAuthService.java         # Authentication & site switching
+    ├── TableauGraphQLClient.java       # GraphQL API client
+    ├── TableauRestClient.java          # REST API client
+    ├── ServerService.java
+    ├── SiteService.java
+    ├── ProjectService.java
+    ├── WorkbookService.java
+    ├── WorksheetService.java
+    ├── ReportAttributeService.java
+    └── DataSourceService.java
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Java 17 or higher
+- Maven 3.8+
+- Access to a Tableau Server with Metadata API enabled
+
+### Configuration
+
+1. Copy and configure `application.properties`:
+
+```properties
+# Tableau Server Configuration
+tableau.base-url=https://your-tableau-server.com
+tableau.api-version=3.17
+tableau.auth-mode=PAT
+
+# Personal Access Token (recommended)
+tableau.pat.name=your-token-name
+tableau.pat.secret=your-token-secret
+
+# OR Username/Password authentication
+# tableau.auth-mode=BASIC
+# tableau.username=your-username
+# tableau.password=your-password
+
+# Default site (leave empty for Default site)
+tableau.default-site-id=
+```
+
+### Build and Run
+
+```bash
+# Build the application
+mvn clean install
+
+# Run with H2 database (default)
+mvn spring-boot:run
+
+# Run with MariaDB
+mvn spring-boot:run -Dspring.profiles.active=mariadb
+```
+
+Or run the JAR directly:
+
+```bash
+# Build JAR
+mvn clean package
+
+# Run with default (H2) profile
+java -jar target/tableau-lineage-sync-application-0.0.1-SNAPSHOT.jar
+
+# Run with MariaDB profile
+java -jar target/tableau-lineage-sync-application-0.0.1-SNAPSHOT.jar --spring.profiles.active=mariadb
+```
+
+### MariaDB Setup
+
+For MariaDB, set environment variables:
+
+```bash
+export DB_HOST=localhost
+export DB_PORT=3306
+export DB_NAME=tableaudb
+export DB_USER=your-user
+export DB_PASS=your-password
+```
+
+## API Endpoints
+
+### Authentication & Site Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/tableau/site/current` | Get current site info |
+| POST | `/api/tableau/site/switch` | Switch to different site |
+| POST | `/api/tableau/auth/signin` | Sign in to Tableau |
+| POST | `/api/tableau/auth/signout` | Sign out |
+
+### Asset Endpoints
+
+Each asset type (servers, sites, projects, workbooks, worksheets, report-attributes, datasources) has:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/{asset}` | Get all active assets |
+| GET | `/api/{asset}/{id}` | Get asset by ID |
+| GET | `/api/{asset}/fetch` | Fetch from Tableau (no persist) |
+| POST | `/api/{asset}/ingest` | Fetch and persist with change tracking |
+| DELETE | `/api/{asset}/{id}` | Soft delete asset and children |
+
+### Swagger UI
+
+Access the interactive API documentation at:
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+## Ingestion Workflow
+
+1. **Authenticate to Tableau**
+   ```
+   POST /api/tableau/auth/signin
+   ```
+
+2. **Switch site if needed**
+   ```
+   POST /api/tableau/site/switch
+   Body: { "siteContentUrl": "YourSiteName" }
+   ```
+
+3. **Ingest assets in order** (respects hierarchy):
+   ```
+   POST /api/servers/ingest
+   POST /api/sites/ingest
+   POST /api/projects/ingest
+   POST /api/workbooks/ingest
+   POST /api/worksheets/ingest
+   POST /api/report-attributes/ingest
+   POST /api/datasources/ingest
+   ```
+
+## Change Detection
+
+The application uses metadata hashing for efficient change detection:
+
+1. **Hash Generation**: SHA-256 hash of relevant fields
+2. **Comparison**: Existing hash vs new hash
+3. **Status Update**:
+   - No existing record → `NEW`
+   - Hash different → `UPDATED`
+   - Hash same → `ACTIVE`
+   - Not in Tableau → `DELETED`
+
+## GraphQL Queries
+
+The application uses Tableau's Metadata API (GraphQL) for detailed metadata including:
+
+- Projects with hierarchy
+- Workbooks with sheets and data sources
+- Sheet field instances with lineage
+- Upstream fields, tables, and columns
+- Calculated field formulas
+- Custom SQL queries
+
+**Important**: Tableau's GraphQL API operates at the site level. Use the site switch endpoint to change context.
+
+## Entity Relationships
+
+```
+TableauServer (1) ──────────────── (Many) TableauSite
+                                           │
+TableauSite (1) ────────────────── (Many) TableauProject
+                                           │
+TableauProject (1) ─────────────── (Many) TableauWorkbook
+                                           │
+TableauWorkbook (1) ───────────── (Many) TableauWorksheet
+        │                                  │
+        │                          TableauWorksheet (1) ── (Many) ReportAttribute
+        │                                                          │
+        └──────── (Many) TableauDataSource ◄───────────────────────┘
+```
+
+## H2 Console (Development)
+
+Access the H2 database console at: `http://localhost:8080/h2-console`
+
+- **JDBC URL**: `jdbc:h2:mem:tableaudb`
+- **Username**: `sa`
+- **Password**: (empty)
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Authentication Failed**
+   - Verify PAT name and secret
+   - Check if PAT has required permissions
+   - Ensure Metadata API is enabled on server
+
+2. **GraphQL Errors**
+   - Confirm you're authenticated to a site
+   - Verify site has Metadata API access
+   - Check server's API version compatibility
+
+3. **Connection Issues**
+   - Verify Tableau server URL
+   - Check network connectivity
+   - Review firewall settings
+
+### Logging
+
+Enable debug logging in `application.properties`:
+
+```properties
+logging.level.com.example.tableau=DEBUG
+logging.level.org.springframework.web.reactive.function.client=DEBUG
+```
+
+## License
+
+Apache 2.0
