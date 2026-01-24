@@ -193,6 +193,21 @@ export DB_PASS=your-password
 
 ## API Endpoints
 
+### Understanding IDs: Database ID vs Asset ID
+
+This application stores Tableau metadata in a local database. Each entity has two types of IDs:
+
+1. **Database ID (Primary Key)**: Auto-generated sequential number (1, 2, 3, etc.) used as the primary key in the local database
+2. **Asset ID (LUID)**: Tableau's unique identifier (UUID format like `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
+
+**When to use which ID:**
+- Use **database ID** for endpoints like `GET /api/sites/{id}` or `DELETE /api/sites/{id}`
+- Use **asset ID** for endpoints like `GET /api/sites/asset/{assetId}` when you have the Tableau LUID
+
+**Example:**
+- Database ID endpoint: `GET /api/sites/1` (retrieves site with database primary key = 1)
+- Asset ID endpoint: `GET /api/sites/asset/a1b2c3d4-e5f6-7890-abcd-ef1234567890` (retrieves site by Tableau LUID)
+
 ### Authentication & Site Management
 
 | Method | Endpoint | Description |
@@ -209,7 +224,8 @@ Each asset type (servers, sites, projects, workbooks, worksheets, report-attribu
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/{asset}` | Get all active assets |
-| GET | `/api/{asset}/{id}` | Get asset by ID |
+| GET | `/api/{asset}/{id}` | Get asset by database ID (primary key) |
+| GET | `/api/{asset}/asset/{assetId}` | Get asset by Tableau asset ID (LUID) - **Available for sites** |
 | GET | `/api/{asset}/fetch` | Fetch from Tableau (no persist) |
 | POST | `/api/{asset}/ingest` | Fetch and persist with change tracking |
 | DELETE | `/api/{asset}/{id}` | Soft delete asset and children |
