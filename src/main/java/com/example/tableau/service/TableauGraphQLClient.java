@@ -681,11 +681,14 @@ public class TableauGraphQLClient {
             return true;
         }
         
-        // Check if the throwable has a cause that's retryable
+        // Traverse the full exception chain to find retryable causes
         Throwable cause = throwable.getCause();
-        if (cause instanceof PrematureCloseException || cause instanceof IOException) {
-            log.warn("Connection issue in cause chain: {}, will retry", cause.getClass().getSimpleName());
-            return true;
+        while (cause != null) {
+            if (cause instanceof PrematureCloseException || cause instanceof IOException) {
+                log.warn("Connection issue in cause chain: {}, will retry", cause.getClass().getSimpleName());
+                return true;
+            }
+            cause = cause.getCause();
         }
         
         return false;

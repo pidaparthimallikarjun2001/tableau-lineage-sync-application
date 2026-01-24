@@ -45,8 +45,16 @@ public class WebClientConfig {
     private static final int MAX_LIFE_TIME_SECONDS = 300;
 
     /**
-     * Configure WebClient with proper timeouts, connection pooling, and keep-alive settings
+     * Configure WebClient.Builder with proper timeouts, connection pooling, and keep-alive settings
      * to prevent premature connection closures.
+     * 
+     * Configuration details:
+     * - Connection timeout: 30 seconds
+     * - Read/Write/Response timeout: 180 seconds (for large GraphQL responses)
+     * - Connection pool: 50 max connections with lifecycle management
+     * - TCP keep-alive: Enabled to maintain persistent connections
+     * 
+     * @return WebClient.Builder configured with custom HTTP client settings
      */
     @Bean
     public WebClient.Builder webClientBuilder() {
