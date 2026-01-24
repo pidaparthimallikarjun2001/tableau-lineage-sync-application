@@ -73,7 +73,7 @@ public class ProjectController {
 
     @Operation(
         summary = "Fetch projects from Tableau",
-        description = "Retrieve projects from Tableau GraphQL API for the current site (does not persist to database)"
+        description = "Retrieve projects from Tableau REST API for the current site (does not persist to database)"
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Projects from Tableau")
@@ -86,7 +86,7 @@ public class ProjectController {
 
     @Operation(
         summary = "Ingest project metadata",
-        description = "Fetch projects from Tableau GraphQL API and ingest/update in the database. " +
+        description = "Fetch projects from Tableau REST API and ingest/update in the database. " +
             "This will compare with existing data and mark records as NEW, UPDATED, or DELETED."
     )
     @ApiResponses({
