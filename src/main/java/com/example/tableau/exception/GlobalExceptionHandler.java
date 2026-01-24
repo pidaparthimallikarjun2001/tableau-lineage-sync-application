@@ -11,6 +11,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Global exception handler for the application.
@@ -19,6 +20,11 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    
+    // Common static resource extensions to suppress from error logs
+    private static final Set<String> STATIC_RESOURCE_EXTENSIONS = Set.of(
+        "favicon.ico", ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico"
+    );
 
     @ExceptionHandler(TableauApiException.class)
     public ResponseEntity<Map<String, Object>> handleTableauApiException(TableauApiException ex) {
@@ -70,17 +76,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Void> handleNoResourceFoundException(NoResourceFoundException ex) {
         // Suppress logging for favicon.ico and other common static resource requests
         String resourcePath = ex.getResourcePath();
-        if (resourcePath != null && (resourcePath.contains("favicon.ico") || 
-                                      resourcePath.contains(".css") || 
-                                      resourcePath.contains(".js") ||
-                                      resourcePath.contains(".png") ||
-                                      resourcePath.contains(".jpg"))) {
+        if (resourcePath != null && isStaticResource(resourcePath)) {
             log.debug("Static resource not found: {}", resourcePath);
         } else {
             log.warn("Static resource not found: {}", resourcePath);
         }
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+    }
+    
+    private boolean isStaticResource(String path) {
+        return STATIC_RESOURCE_EXTENSIONS.stream().anyMatch(path::endsWith);
     }
 
     @ExceptionHandler(Exception.class)
