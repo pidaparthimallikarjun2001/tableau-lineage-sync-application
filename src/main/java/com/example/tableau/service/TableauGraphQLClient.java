@@ -291,7 +291,6 @@ public class TableauGraphQLClient {
                         datasource {
                             id
                             name
-                            luid
                         }
                     }
                     upstreamFields {
@@ -301,7 +300,6 @@ public class TableauGraphQLClient {
                         datasource {
                             id
                             name
-                            luid
                         }
                         upstreamTables {
                             id
@@ -320,7 +318,6 @@ public class TableauGraphQLClient {
                             table {
                                 id
                                 name
-                                fullName
                             }
                         }
                         ... on ColumnField {
@@ -334,7 +331,6 @@ public class TableauGraphQLClient {
                     upstreamDatasources {
                         id
                         name
-                        luid
                     }
                 }
             }
