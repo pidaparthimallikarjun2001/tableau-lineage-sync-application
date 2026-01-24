@@ -88,24 +88,29 @@ public class TableauGraphQLClient {
         variables.put("first", pageSize);
         if (cursor != null) {
             variables.put("after", cursor);
-        } else {
-            variables.put("offset", offset);
         }
         
         return executeQuery(query, variables)
                 .flatMap(response -> {
-                    JsonNode data = navigateToPath(response, dataPath);
-                    if (data != null && data.isArray()) {
-                        data.forEach(results::add);
+                    // Navigate to the connection object
+                    JsonNode connection = navigateToPath(response, dataPath);
+                    if (connection == null) {
+                        return Mono.just(results);
+                    }
+                    
+                    // Get nodes array
+                    JsonNode nodes = connection.path("nodes");
+                    if (nodes != null && nodes.isArray()) {
+                        nodes.forEach(results::add);
                     }
                     
                     // Check for pagination info
-                    JsonNode pageInfo = response.path("data").path("pageInfo");
+                    JsonNode pageInfo = connection.path("pageInfo");
                     boolean hasNextPage = pageInfo.path("hasNextPage").asBoolean(false);
                     String endCursor = pageInfo.path("endCursor").asText(null);
                     
                     if (hasNextPage && endCursor != null) {
-                        return executePagedQuery(query, dataPath, pageSize, offset + pageSize, endCursor, results);
+                        return executePagedQuery(query, dataPath, pageSize, offset, endCursor, results);
                     }
                     
                     return Mono.just(results);
@@ -130,22 +135,28 @@ public class TableauGraphQLClient {
      * Query for projects in the current site.
      */
     public static final String PROJECTS_QUERY = """
-        query getProjects($first: Int, $offset: Int) {
-            projects(first: $first, offset: $offset) {
-                id
-                name
-                luid
-                description
-                vizportalUrlId
-                parentProject {
+        query getProjects($first: Int!, $after: String) {
+            projectsConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
                     id
                     name
                     luid
-                }
-                owner {
-                    id
-                    name
-                    username
+                    description
+                    vizportalUrlId
+                    parentProject {
+                        id
+                        name
+                        luid
+                    }
+                    owner {
+                        id
+                        name
+                        username
+                    }
                 }
             }
         }
@@ -155,36 +166,42 @@ public class TableauGraphQLClient {
      * Query for workbooks in the current site.
      */
     public static final String WORKBOOKS_QUERY = """
-        query getWorkbooks($first: Int, $offset: Int) {
-            workbooks(first: $first, offset: $offset) {
-                id
-                name
-                luid
-                description
-                createdAt
-                updatedAt
-                uri
-                vizportalUrlId
-                projectName
-                projectVizportalUrlId
-                owner {
-                    id
-                    name
-                    username
+        query getWorkbooks($first: Int!, $after: String) {
+            workbooksConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
                 }
-                sheets {
+                nodes {
                     id
                     name
                     luid
-                }
-                embeddedDatasources {
-                    id
-                    name
-                }
-                upstreamDatasources {
-                    id
-                    name
-                    luid
+                    description
+                    createdAt
+                    updatedAt
+                    uri
+                    vizportalUrlId
+                    projectName
+                    projectVizportalUrlId
+                    owner {
+                        id
+                        name
+                        username
+                    }
+                    sheets {
+                        id
+                        name
+                        luid
+                    }
+                    embeddedDatasources {
+                        id
+                        name
+                    }
+                    upstreamDatasources {
+                        id
+                        name
+                        luid
+                    }
                 }
             }
         }
@@ -194,38 +211,44 @@ public class TableauGraphQLClient {
      * Query for worksheets (sheets) with field information.
      */
     public static final String WORKSHEETS_QUERY = """
-        query getSheets($first: Int, $offset: Int) {
-            sheets(first: $first, offset: $offset) {
-                id
-                name
-                luid
-                workbook {
+        query getSheets($first: Int!, $after: String) {
+            sheetsConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
                     id
                     name
                     luid
-                }
-                sheetFieldInstances {
-                    id
-                    name
-                    datasource {
+                    workbook {
+                        id
+                        name
+                        luid
+                    }
+                    sheetFieldInstances {
+                        id
+                        name
+                        datasource {
+                            id
+                            name
+                        }
+                    }
+                    upstreamFields {
+                        id
+                        name
+                        dataType
+                        isCalculated
+                        formula
+                        datasource {
+                            id
+                            name
+                        }
+                    }
+                    upstreamDatasources {
                         id
                         name
                     }
-                }
-                upstreamFields {
-                    id
-                    name
-                    dataType
-                    isCalculated
-                    formula
-                    datasource {
-                        id
-                        name
-                    }
-                }
-                upstreamDatasources {
-                    id
-                    name
                 }
             }
         }
@@ -235,40 +258,67 @@ public class TableauGraphQLClient {
      * Query for detailed sheet field instances (report attributes) with lineage.
      */
     public static final String SHEET_FIELDS_QUERY = """
-        query getSheetFieldInstances($first: Int, $offset: Int) {
-            sheetFieldInstances(first: $first, offset: $offset) {
-                id
-                name
-                sheet {
+        query getSheetFieldInstances($first: Int!, $after: String) {
+            sheetFieldInstancesConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
                     id
                     name
-                    luid
-                    workbook {
+                    sheet {
+                        id
+                        name
+                        luid
+                        workbook {
+                            id
+                            name
+                            luid
+                        }
+                    }
+                    datasource {
                         id
                         name
                         luid
                     }
-                }
-                datasource {
-                    id
-                    name
-                    luid
-                }
-                referencedByCalculations {
-                    id
-                    name
-                    formula
-                }
-                upstreamFields {
-                    id
-                    name
-                    dataType
-                    isCalculated
-                    formula
+                    referencedByCalculations {
+                        id
+                        name
+                        formula
+                    }
+                    upstreamFields {
+                        id
+                        name
+                        dataType
+                        isCalculated
+                        formula
+                        upstreamTables {
+                            id
+                            name
+                            fullName
+                            database {
+                                id
+                                name
+                                connectionType
+                            }
+                        }
+                        upstreamColumns {
+                            id
+                            name
+                            remoteType
+                            table {
+                                id
+                                name
+                                fullName
+                            }
+                        }
+                    }
                     upstreamTables {
                         id
                         name
                         fullName
+                        schema
                         database {
                             id
                             name
@@ -286,27 +336,6 @@ public class TableauGraphQLClient {
                         }
                     }
                 }
-                upstreamTables {
-                    id
-                    name
-                    fullName
-                    schema
-                    database {
-                        id
-                        name
-                        connectionType
-                    }
-                }
-                upstreamColumns {
-                    id
-                    name
-                    remoteType
-                    table {
-                        id
-                        name
-                        fullName
-                    }
-                }
             }
         }
         """;
@@ -315,27 +344,33 @@ public class TableauGraphQLClient {
      * Query for calculated fields with formulas.
      */
     public static final String CALCULATED_FIELDS_QUERY = """
-        query getCalculatedFields($first: Int, $offset: Int) {
-            calculatedFields(first: $first, offset: $offset) {
-                id
-                name
-                formula
-                dataType
-                role
-                datasource {
-                    id
-                    name
-                    luid
+        query getCalculatedFields($first: Int!, $after: String) {
+            calculatedFieldsConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
                 }
-                fields {
-                    id
-                    name
-                    dataType
-                }
-                referencedByCalculations {
+                nodes {
                     id
                     name
                     formula
+                    dataType
+                    role
+                    datasource {
+                        id
+                        name
+                        luid
+                    }
+                    fields {
+                        id
+                        name
+                        dataType
+                    }
+                    referencedByCalculations {
+                        id
+                        name
+                        formula
+                    }
                 }
             }
         }
@@ -345,51 +380,57 @@ public class TableauGraphQLClient {
      * Query for data sources with connection details.
      */
     public static final String DATASOURCES_QUERY = """
-        query getDatasources($first: Int, $offset: Int) {
-            publishedDatasources(first: $first, offset: $offset) {
-                id
-                name
-                luid
-                description
-                isCertified
-                certificationNote
-                hasExtracts
-                extractLastRefreshTime
-                extractLastUpdateTime
-                owner {
-                    id
-                    name
-                    username
+        query getDatasources($first: Int!, $after: String) {
+            publishedDatasourcesConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
                 }
-                projectName
-                projectVizportalUrlId
-                upstreamTables {
+                nodes {
                     id
                     name
-                    fullName
-                    schema
-                    connectionType
-                    database {
+                    luid
+                    description
+                    isCertified
+                    certificationNote
+                    hasExtracts
+                    extractLastRefreshTime
+                    extractLastUpdateTime
+                    owner {
                         id
                         name
-                        connectionType
+                        username
                     }
-                }
-                fields {
-                    id
-                    name
-                    dataType
-                    isCalculated
-                    formula
+                    projectName
+                    projectVizportalUrlId
                     upstreamTables {
                         id
                         name
                         fullName
+                        schema
+                        connectionType
+                        database {
+                            id
+                            name
+                            connectionType
+                        }
                     }
-                    upstreamColumns {
+                    fields {
                         id
                         name
-                        remoteType
+                        dataType
+                        isCalculated
+                        formula
+                        upstreamTables {
+                            id
+                            name
+                            fullName
+                        }
+                        upstreamColumns {
+                            id
+                            name
+                            remoteType
+                        }
                     }
                 }
             }
@@ -400,17 +441,98 @@ public class TableauGraphQLClient {
      * Query for embedded data sources in workbooks.
      */
     public static final String EMBEDDED_DATASOURCES_QUERY = """
-        query getEmbeddedDatasources($first: Int, $offset: Int) {
-            embeddedDatasources(first: $first, offset: $offset) {
-                id
-                name
-                hasExtracts
-                workbook {
+        query getEmbeddedDatasources($first: Int!, $after: String) {
+            embeddedDatasourcesConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
                     id
                     name
-                    luid
+                    hasExtracts
+                    workbook {
+                        id
+                        name
+                        luid
+                    }
+                    upstreamTables {
+                        id
+                        name
+                        fullName
+                        schema
+                        connectionType
+                        isEmbedded
+                        database {
+                            id
+                            name
+                            connectionType
+                        }
+                    }
+                    upstreamDatasources {
+                        id
+                        name
+                        luid
+                    }
+                    fields {
+                        id
+                        name
+                        dataType
+                        isCalculated
+                        formula
+                    }
                 }
-                upstreamTables {
+            }
+        }
+        """;
+
+    /**
+     * Query for custom SQL tables.
+     */
+    public static final String CUSTOM_SQL_TABLES_QUERY = """
+        query getCustomSQLTables($first: Int!, $after: String) {
+            customSQLTablesConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    id
+                    name
+                    query
+                    isEmbedded
+                    connectionType
+                    database {
+                        id
+                        name
+                        connectionType
+                    }
+                    columns {
+                        id
+                        name
+                        remoteType
+                    }
+                    downstreamDatasources {
+                        id
+                        name
+                        luid
+                    }
+                }
+            }
+        }
+        """;
+
+    /**
+     * Query for database tables.
+     */
+    public static final String DATABASE_TABLES_QUERY = """
+        query getDatabaseTables($first: Int!, $after: String) {
+            databaseTablesConnection(first: $first, after: $after) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
                     id
                     name
                     fullName
@@ -422,74 +544,11 @@ public class TableauGraphQLClient {
                         name
                         connectionType
                     }
-                }
-                upstreamDatasources {
-                    id
-                    name
-                    luid
-                }
-                fields {
-                    id
-                    name
-                    dataType
-                    isCalculated
-                    formula
-                }
-            }
-        }
-        """;
-
-    /**
-     * Query for custom SQL tables.
-     */
-    public static final String CUSTOM_SQL_TABLES_QUERY = """
-        query getCustomSQLTables($first: Int, $offset: Int) {
-            customSQLTables(first: $first, offset: $offset) {
-                id
-                name
-                query
-                isEmbedded
-                connectionType
-                database {
-                    id
-                    name
-                    connectionType
-                }
-                columns {
-                    id
-                    name
-                    remoteType
-                }
-                downstreamDatasources {
-                    id
-                    name
-                    luid
-                }
-            }
-        }
-        """;
-
-    /**
-     * Query for database tables.
-     */
-    public static final String DATABASE_TABLES_QUERY = """
-        query getDatabaseTables($first: Int, $offset: Int) {
-            databaseTables(first: $first, offset: $offset) {
-                id
-                name
-                fullName
-                schema
-                connectionType
-                isEmbedded
-                database {
-                    id
-                    name
-                    connectionType
-                }
-                columns {
-                    id
-                    name
-                    remoteType
+                    columns {
+                        id
+                        name
+                        remoteType
+                    }
                 }
             }
         }
@@ -499,49 +558,49 @@ public class TableauGraphQLClient {
      * Fetch projects from the current site.
      */
     public Mono<List<JsonNode>> fetchProjects(int pageSize) {
-        return executeQueryWithPagination(PROJECTS_QUERY, "data.projects", pageSize);
+        return executeQueryWithPagination(PROJECTS_QUERY, "data.projectsConnection", pageSize);
     }
 
     /**
      * Fetch workbooks from the current site.
      */
     public Mono<List<JsonNode>> fetchWorkbooks(int pageSize) {
-        return executeQueryWithPagination(WORKBOOKS_QUERY, "data.workbooks", pageSize);
+        return executeQueryWithPagination(WORKBOOKS_QUERY, "data.workbooksConnection", pageSize);
     }
 
     /**
      * Fetch worksheets/sheets from the current site.
      */
     public Mono<List<JsonNode>> fetchWorksheets(int pageSize) {
-        return executeQueryWithPagination(WORKSHEETS_QUERY, "data.sheets", pageSize);
+        return executeQueryWithPagination(WORKSHEETS_QUERY, "data.sheetsConnection", pageSize);
     }
 
     /**
      * Fetch sheet field instances from the current site.
      */
     public Mono<List<JsonNode>> fetchSheetFieldInstances(int pageSize) {
-        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.sheetFieldInstances", pageSize);
+        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.sheetFieldInstancesConnection", pageSize);
     }
 
     /**
      * Fetch published data sources from the current site.
      */
     public Mono<List<JsonNode>> fetchPublishedDatasources(int pageSize) {
-        return executeQueryWithPagination(DATASOURCES_QUERY, "data.publishedDatasources", pageSize);
+        return executeQueryWithPagination(DATASOURCES_QUERY, "data.publishedDatasourcesConnection", pageSize);
     }
 
     /**
      * Fetch embedded data sources from the current site.
      */
     public Mono<List<JsonNode>> fetchEmbeddedDatasources(int pageSize) {
-        return executeQueryWithPagination(EMBEDDED_DATASOURCES_QUERY, "data.embeddedDatasources", pageSize);
+        return executeQueryWithPagination(EMBEDDED_DATASOURCES_QUERY, "data.embeddedDatasourcesConnection", pageSize);
     }
 
     /**
      * Fetch custom SQL tables from the current site.
      */
     public Mono<List<JsonNode>> fetchCustomSQLTables(int pageSize) {
-        return executeQueryWithPagination(CUSTOM_SQL_TABLES_QUERY, "data.customSQLTables", pageSize);
+        return executeQueryWithPagination(CUSTOM_SQL_TABLES_QUERY, "data.customSQLTablesConnection", pageSize);
     }
 
     private JsonNode parseGraphQLResponse(String json) {
