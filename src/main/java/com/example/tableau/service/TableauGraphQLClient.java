@@ -11,8 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.PrematureCloseException;
 import reactor.util.retry.Retry;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.*;
 
@@ -63,10 +65,13 @@ public class TableauGraphQLClient {
                                 .retrieve()
                                 .bodyToMono(String.class)
                                 .map(this::parseGraphQLResponse)
-                                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
+                                .retryWhen(Retry.backoff(5, Duration.ofSeconds(2))
+                                        .maxBackoff(Duration.ofSeconds(10))
                                         .filter(this::isRetryableError)
                                         .doBeforeRetry(signal -> 
-                                            log.warn("Retrying GraphQL request, attempt {}", signal.totalRetries() + 1)));
+                                            log.warn("Retrying GraphQL request due to {}, attempt {}", 
+                                                signal.failure().getClass().getSimpleName(), 
+                                                signal.totalRetries() + 1)));
                     } catch (Exception e) {
                         return Mono.error(new TableauApiException("Failed to execute GraphQL query", e));
                     }
@@ -658,10 +663,34 @@ public class TableauGraphQLClient {
     }
 
     private boolean isRetryableError(Throwable throwable) {
+        // Retry on HTTP 429 (Too Many Requests) or 5xx server errors
         if (throwable instanceof WebClientResponseException wcre) {
             int status = wcre.getStatusCode().value();
             return status == 429 || status >= 500;
         }
+        
+        // Retry on PrematureCloseException - connection closed before response
+        if (throwable instanceof PrematureCloseException) {
+            log.warn("Connection prematurely closed, will retry");
+            return true;
+        }
+        
+        // Retry on IOException (includes connection reset, broken pipe, etc.)
+        if (throwable instanceof IOException) {
+            log.warn("IO Exception occurred: {}, will retry", throwable.getMessage());
+            return true;
+        }
+        
+        // Traverse the full exception chain to find retryable causes
+        Throwable cause = throwable.getCause();
+        while (cause != null) {
+            if (cause instanceof PrematureCloseException || cause instanceof IOException) {
+                log.warn("Connection issue in cause chain: {}, will retry", cause.getClass().getSimpleName());
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        
         return false;
     }
 }
