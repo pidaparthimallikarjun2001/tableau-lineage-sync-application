@@ -1,6 +1,7 @@
 package com.example.tableau.entity;
 
 import com.example.tableau.enums.StatusFlag;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -134,6 +135,7 @@ public class ReportAttribute {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "worksheet_fk_id")
+    @JsonIgnore
     private TableauWorksheet worksheet;
 
     /**
@@ -141,6 +143,7 @@ public class ReportAttribute {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "datasource_fk_id")
+    @JsonIgnore
     private TableauDataSource dataSource;
 
     @PrePersist
