@@ -516,7 +516,9 @@ public class DataSourceService extends BaseAssetService {
         try {
             List<Map<String, Object>> calcFields = new ArrayList<>();
             for (JsonNode field : fields) {
-                if (field.path("isCalculated").asBoolean(false)) {
+                // Check if field is calculated based on __typename
+                String fieldType = field.path("__typename").asText("");
+                if ("CalculatedField".equals(fieldType)) {
                     Map<String, Object> fieldInfo = new HashMap<>();
                     fieldInfo.put("id", field.path("id").asText());
                     fieldInfo.put("name", field.path("name").asText());

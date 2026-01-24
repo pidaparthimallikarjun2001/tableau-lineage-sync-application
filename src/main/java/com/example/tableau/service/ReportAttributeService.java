@@ -138,7 +138,9 @@ public class ReportAttributeService extends BaseAssetService {
                             if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
                                 JsonNode firstUpstream = upstreamFields.get(0);
                                 dataType = firstUpstream.path("dataType").asText(null);
-                                if (firstUpstream.path("isCalculated").asBoolean(false)) {
+                                // Check if field is a CalculatedField by __typename
+                                String fieldType = firstUpstream.path("__typename").asText("");
+                                if ("CalculatedField".equals(fieldType)) {
                                     isCalculated = true;
                                     calculationLogic = firstUpstream.path("formula").asText(calculationLogic);
                                 }
@@ -276,8 +278,11 @@ public class ReportAttributeService extends BaseAssetService {
                     fieldInfo.put("id", field.path("id").asText());
                     fieldInfo.put("name", field.path("name").asText());
                     fieldInfo.put("dataType", field.path("dataType").asText());
-                    fieldInfo.put("isCalculated", field.path("isCalculated").asBoolean());
-                    if (field.path("isCalculated").asBoolean()) {
+                    // Check if field is calculated based on __typename
+                    String fieldType = field.path("__typename").asText("");
+                    boolean isCalc = "CalculatedField".equals(fieldType);
+                    fieldInfo.put("isCalculated", isCalc);
+                    if (isCalc) {
                         fieldInfo.put("formula", field.path("formula").asText());
                     }
                     fields.add(fieldInfo);
