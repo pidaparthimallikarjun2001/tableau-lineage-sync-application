@@ -237,12 +237,17 @@ public class TableauGraphQLClient {
                     upstreamFields {
                         id
                         name
-                        dataType
-                        isCalculated
-                        formula
+                        __typename
                         datasource {
                             id
                             name
+                        }
+                        ... on ColumnField {
+                            dataType
+                        }
+                        ... on CalculatedField {
+                            dataType
+                            formula
                         }
                     }
                     upstreamDatasources {
@@ -290,9 +295,7 @@ public class TableauGraphQLClient {
                     upstreamFields {
                         id
                         name
-                        dataType
-                        isCalculated
-                        formula
+                        __typename
                         upstreamTables {
                             id
                             name
@@ -312,6 +315,13 @@ public class TableauGraphQLClient {
                                 name
                                 fullName
                             }
+                        }
+                        ... on ColumnField {
+                            dataType
+                        }
+                        ... on CalculatedField {
+                            dataType
+                            formula
                         }
                     }
                     upstreamTables {
@@ -418,9 +428,7 @@ public class TableauGraphQLClient {
                     fields {
                         id
                         name
-                        dataType
-                        isCalculated
-                        formula
+                        __typename
                         upstreamTables {
                             id
                             name
@@ -430,6 +438,13 @@ public class TableauGraphQLClient {
                             id
                             name
                             remoteType
+                        }
+                        ... on ColumnField {
+                            dataType
+                        }
+                        ... on CalculatedField {
+                            dataType
+                            formula
                         }
                     }
                 }
@@ -477,9 +492,14 @@ public class TableauGraphQLClient {
                     fields {
                         id
                         name
-                        dataType
-                        isCalculated
-                        formula
+                        __typename
+                        ... on ColumnField {
+                            dataType
+                        }
+                        ... on CalculatedField {
+                            dataType
+                            formula
+                        }
                     }
                 }
             }
