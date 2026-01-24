@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -63,6 +64,23 @@ public class GlobalExceptionHandler {
         errorResponse.put("message", ex.getMessage());
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Void> handleNoResourceFoundException(NoResourceFoundException ex) {
+        // Suppress logging for favicon.ico and other common static resource requests
+        String resourcePath = ex.getResourcePath();
+        if (resourcePath != null && (resourcePath.contains("favicon.ico") || 
+                                      resourcePath.contains(".css") || 
+                                      resourcePath.contains(".js") ||
+                                      resourcePath.contains(".png") ||
+                                      resourcePath.contains(".jpg"))) {
+            log.debug("Static resource not found: {}", resourcePath);
+        } else {
+            log.warn("Static resource not found: {}", resourcePath);
+        }
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
 
     @ExceptionHandler(Exception.class)
