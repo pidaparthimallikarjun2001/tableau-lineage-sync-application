@@ -1,6 +1,7 @@
 package com.example.tableau.entity;
 
 import com.example.tableau.enums.StatusFlag;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -80,6 +81,7 @@ public class TableauSite {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "server_id")
+    @JsonIgnore
     private TableauServer server;
 
     /**
@@ -87,6 +89,7 @@ public class TableauSite {
      */
     @OneToMany(mappedBy = "site", cascade = CascadeType.ALL, orphanRemoval = false)
     @Builder.Default
+    @JsonIgnore
     private List<TableauProject> projects = new ArrayList<>();
 
     @PrePersist

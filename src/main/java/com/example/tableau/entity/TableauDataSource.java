@@ -2,6 +2,7 @@ package com.example.tableau.entity;
 
 import com.example.tableau.enums.SourceType;
 import com.example.tableau.enums.StatusFlag;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -158,6 +159,7 @@ public class TableauDataSource {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workbook_fk_id")
+    @JsonIgnore
     private TableauWorkbook workbook;
 
     /**
@@ -165,6 +167,7 @@ public class TableauDataSource {
      */
     @OneToMany(mappedBy = "dataSource", cascade = CascadeType.ALL, orphanRemoval = false)
     @Builder.Default
+    @JsonIgnore
     private List<ReportAttribute> reportAttributes = new ArrayList<>();
 
     /**
