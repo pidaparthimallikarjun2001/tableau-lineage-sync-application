@@ -269,7 +269,7 @@ public class TableauGraphQLClient {
      */
     public static final String SHEET_FIELDS_QUERY = """
         query getSheetFieldInstances($first: Int!, $after: String) {
-            sheetFieldInstancesConnection(first: $first, after: $after) {
+            fieldInstancesConnection(first: $first, after: $after) {
                 pageInfo {
                     hasNextPage
                     endCursor
@@ -604,7 +604,7 @@ public class TableauGraphQLClient {
      * Fetch sheet field instances from the current site.
      */
     public Mono<List<JsonNode>> fetchSheetFieldInstances(int pageSize) {
-        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.sheetFieldInstancesConnection", pageSize);
+        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.fieldInstancesConnection", pageSize);
     }
 
     /**
