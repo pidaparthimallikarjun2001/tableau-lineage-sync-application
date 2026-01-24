@@ -225,10 +225,12 @@ Each asset type (servers, sites, projects, workbooks, worksheets, report-attribu
 |--------|----------|-------------|
 | GET | `/api/{asset}` | Get all active assets |
 | GET | `/api/{asset}/{id}` | Get asset by database ID (primary key) |
-| GET | `/api/{asset}/asset/{assetId}` | Get asset by Tableau asset ID (LUID) - **Available for sites** |
 | GET | `/api/{asset}/fetch` | Fetch from Tableau (no persist) |
 | POST | `/api/{asset}/ingest` | Fetch and persist with change tracking |
 | DELETE | `/api/{asset}/{id}` | Soft delete asset and children |
+
+**Additional Site-Specific Endpoint:**
+- `GET /api/sites/asset/{assetId}` - Get site by Tableau asset ID (LUID)
 
 ### Swagger UI
 

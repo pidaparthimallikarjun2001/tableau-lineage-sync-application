@@ -2,6 +2,7 @@ package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
 import com.example.tableau.entity.TableauSite;
+import com.example.tableau.exception.ResourceNotFoundException;
 import com.example.tableau.service.SiteService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -74,7 +75,7 @@ public class SiteController {
             @PathVariable String assetId) {
         return ResponseEntity.ok(
             siteService.getSiteByAssetId(assetId)
-                .orElseThrow(() -> new com.example.tableau.exception.ResourceNotFoundException("Site with asset ID", assetId))
+                .orElseThrow(() -> new ResourceNotFoundException("Site with asset ID", assetId))
         );
     }
 
