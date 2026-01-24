@@ -22,18 +22,18 @@ public class ProjectService extends BaseAssetService {
 
     private final TableauProjectRepository projectRepository;
     private final TableauSiteRepository siteRepository;
-    private final TableauGraphQLClient graphQLClient;
+    private final TableauRestClient restClient;
     private final TableauAuthService authService;
     private final WorkbookService workbookService;
 
     public ProjectService(TableauProjectRepository projectRepository,
                           TableauSiteRepository siteRepository,
-                          TableauGraphQLClient graphQLClient,
+                          TableauRestClient restClient,
                           TableauAuthService authService,
                           WorkbookService workbookService) {
         this.projectRepository = projectRepository;
         this.siteRepository = siteRepository;
-        this.graphQLClient = graphQLClient;
+        this.restClient = restClient;
         this.authService = authService;
         this.workbookService = workbookService;
     }
@@ -68,10 +68,10 @@ public class ProjectService extends BaseAssetService {
     }
 
     /**
-     * Fetch projects from Tableau GraphQL API.
+     * Fetch projects from Tableau REST API.
      */
     public Mono<List<JsonNode>> fetchProjectsFromTableau() {
-        return graphQLClient.fetchProjects(100);
+        return restClient.getProjects();
     }
 
     /**
@@ -84,7 +84,7 @@ public class ProjectService extends BaseAssetService {
             return Mono.just(createFailureResult("Project", "No active site. Please authenticate first."));
         }
         
-        return graphQLClient.fetchProjects(100)
+        return restClient.getProjects()
                 .map(projects -> {
                     try {
                         int newCount = 0, updatedCount = 0, deletedCount = 0, unchangedCount = 0;
@@ -93,13 +93,11 @@ public class ProjectService extends BaseAssetService {
                         TableauSite site = siteRepository.findByAssetId(currentSiteId).orElse(null);
                         
                         for (JsonNode projectNode : projects) {
-                            String assetId = projectNode.path("luid").asText(projectNode.path("id").asText());
+                            String assetId = projectNode.path("id").asText();
                             String name = projectNode.path("name").asText();
                             String description = projectNode.path("description").asText(null);
                             
-                            JsonNode parentProject = projectNode.path("parentProject");
-                            String parentProjectId = !parentProject.isMissingNode() ? 
-                                    parentProject.path("luid").asText(parentProject.path("id").asText(null)) : null;
+                            String parentProjectId = projectNode.path("parentProjectId").asText(null);
                             
                             processedAssetIds.add(assetId);
                             
