@@ -266,10 +266,12 @@ public class TableauGraphQLClient {
 
     /**
      * Query for detailed sheet field instances (report attributes) with lineage.
+     * Note: sheetFieldInstances is a nested field within Sheet, not a top-level query.
+     * We query sheets and extract their field instances.
      */
     public static final String SHEET_FIELDS_QUERY = """
         query getSheetFieldInstances($first: Int!, $after: String) {
-            fieldInstancesConnection(first: $first, after: $after) {
+            sheetsConnection(first: $first, after: $after) {
                 pageInfo {
                     hasNextPage
                     endCursor
@@ -277,30 +279,30 @@ public class TableauGraphQLClient {
                 nodes {
                     id
                     name
-                    sheet {
+                    luid
+                    workbook {
                         id
                         name
                         luid
-                        workbook {
+                    }
+                    sheetFieldInstances {
+                        id
+                        name
+                        datasource {
                             id
                             name
                             luid
                         }
                     }
-                    datasource {
-                        id
-                        name
-                        luid
-                    }
-                    referencedByCalculations {
-                        id
-                        name
-                        formula
-                    }
                     upstreamFields {
                         id
                         name
                         __typename
+                        datasource {
+                            id
+                            name
+                            luid
+                        }
                         upstreamTables {
                             id
                             name
@@ -329,26 +331,10 @@ public class TableauGraphQLClient {
                             formula
                         }
                     }
-                    upstreamTables {
+                    upstreamDatasources {
                         id
                         name
-                        fullName
-                        schema
-                        database {
-                            id
-                            name
-                            connectionType
-                        }
-                    }
-                    upstreamColumns {
-                        id
-                        name
-                        remoteType
-                        table {
-                            id
-                            name
-                            fullName
-                        }
+                        luid
                     }
                 }
             }
@@ -602,9 +588,67 @@ public class TableauGraphQLClient {
 
     /**
      * Fetch sheet field instances from the current site.
+     * Since sheetFieldInstances are nested within sheets, we query sheets
+     * and flatten the field instances, attaching sheet/workbook context to each.
      */
     public Mono<List<JsonNode>> fetchSheetFieldInstances(int pageSize) {
-        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.fieldInstancesConnection", pageSize);
+        return executeQueryWithPagination(SHEET_FIELDS_QUERY, "data.sheetsConnection", pageSize)
+                .map(sheets -> {
+                    List<JsonNode> flattenedFieldInstances = new ArrayList<>();
+                    for (JsonNode sheet : sheets) {
+                        JsonNode sheetFieldInstances = sheet.path("sheetFieldInstances");
+                        JsonNode upstreamFields = sheet.path("upstreamFields");
+                        
+                        if (sheetFieldInstances.isArray()) {
+                            for (JsonNode fieldInstance : sheetFieldInstances) {
+                                // Create an enhanced object that includes sheet context
+                                Map<String, Object> enhancedInstance = new HashMap<>();
+                                
+                                // Copy field instance properties
+                                enhancedInstance.put("id", fieldInstance.path("id").asText());
+                                enhancedInstance.put("name", fieldInstance.path("name").asText());
+                                
+                                // Add datasource info from field instance
+                                JsonNode datasource = fieldInstance.path("datasource");
+                                if (!datasource.isMissingNode()) {
+                                    enhancedInstance.put("datasource", mapper.convertValue(datasource, Map.class));
+                                }
+                                
+                                // Add sheet context
+                                Map<String, Object> sheetContext = new HashMap<>();
+                                sheetContext.put("id", sheet.path("id").asText());
+                                sheetContext.put("name", sheet.path("name").asText());
+                                sheetContext.put("luid", sheet.path("luid").asText());
+                                
+                                // Add workbook context
+                                JsonNode workbook = sheet.path("workbook");
+                                if (!workbook.isMissingNode()) {
+                                    Map<String, Object> workbookContext = new HashMap<>();
+                                    workbookContext.put("id", workbook.path("id").asText());
+                                    workbookContext.put("name", workbook.path("name").asText());
+                                    workbookContext.put("luid", workbook.path("luid").asText());
+                                    sheetContext.put("workbook", workbookContext);
+                                }
+                                enhancedInstance.put("sheet", sheetContext);
+                                
+                                // Add upstream fields from the sheet level
+                                if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
+                                    enhancedInstance.put("upstreamFields", mapper.convertValue(upstreamFields, List.class));
+                                }
+                                
+                                try {
+                                    flattenedFieldInstances.add(mapper.valueToTree(enhancedInstance));
+                                } catch (Exception e) {
+                                    log.warn("Failed to convert field instance to JsonNode: id={}, name={}, error={}", 
+                                            fieldInstance.path("id").asText(), 
+                                            fieldInstance.path("name").asText(),
+                                            e.getMessage());
+                                }
+                            }
+                        }
+                    }
+                    return flattenedFieldInstances;
+                });
     }
 
     /**
