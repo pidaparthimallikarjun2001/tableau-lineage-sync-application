@@ -112,10 +112,10 @@ public class ReportAttributeService extends BaseAssetService {
                             String worksheetId = !sheetNode.isMissingNode() ? 
                                     sheetNode.path("id").asText(null) : null;
                             
-                            // Datasource info
+                            // Datasource info - use id only
                             JsonNode dsNode = fieldNode.path("datasource");
                             String datasourceId = !dsNode.isMissingNode() ? 
-                                    extractAssetId(dsNode) : null;
+                                    dsNode.path("id").asText(null) : null;
                             String datasourceName = !dsNode.isMissingNode() ? dsNode.path("name").asText(null) : null;
                             
                             // Extract lineage information

@@ -6,29 +6,31 @@ This document describes which identifier (`id` or `luid`) is used for each Table
 
 Tableau provides two types of identifiers for most assets:
 - **`id`**: A numeric identifier that is **always present** in Tableau API responses
-- **`luid`**: Locally Unique Identifier (UUID format) - the primary identifier for most assets
+- **`luid`**: Locally Unique Identifier (UUID format) - used in some contexts
 
-**Important**: While `luid` is preferred for uniqueness and consistency, **it can be null or missing** for some assets (especially nested objects like sheets within workbooks). The `id` field, however, is **always present** in API responses. This is why the application uses a fallback pattern: prefer `luid` when available, but fall back to `id` to ensure data integrity.
-
-This application uses a smart extraction strategy that accounts for these API behavior differences.
+**Decision**: This application uses **`id` exclusively** for all asset types to:
+1. **Eliminate confusion** - Always know which identifier is being used
+2. **Ensure consistency** - All assets use the same identifier type
+3. **Guarantee reliability** - `id` is always present (unlike `luid` which can be null)
+4. **Simplify code** - No need for fallback logic or conditional extraction
 
 ---
 
 ## Database Storage
 
-**All asset types** store the identifier (LUID or ID) in the database:
+**All asset types** store the `id` in the database:
 
 | Asset Type | Database Column | Storage Value | Entity Field |
 |------------|-----------------|---------------|--------------|
 | Server | `asset_id` | **LUID** | `assetId` (String) |
-| Site | `asset_id` | **ID** (from REST API) | `assetId` (String) |
-| Project | `asset_id` | **ID** (from GraphQL) | `assetId` (String) |
-| Workbook | `asset_id` | **LUID** or **ID** (fallback) | `assetId` (String) |
-| Worksheet | `asset_id` | **ID** (always) | `assetId` (String) |
-| DataSource | `asset_id` | **LUID** or **ID** (fallback) | `assetId` (String) |
-| ReportAttribute | `asset_id` | **ID** (only available) | `assetId` (String) |
+| Site | `asset_id` | **ID** | `assetId` (String) |
+| Project | `asset_id` | **ID** | `assetId` (String) |
+| Workbook | `asset_id` | **ID** | `assetId` (String) |
+| Worksheet | `asset_id` | **ID** | `assetId` (String) |
+| DataSource | `asset_id` | **ID** | `assetId` (String) |
+| ReportAttribute | `asset_id` | **ID** | `assetId` (String) |
 
-**Note**: The `assetId` field in all entity classes is documented as "Unique identifier from Tableau (LUID)" (see line 30-32 in each entity class), but in practice it stores whichever identifier is available and reliable from the API.
+**Note**: The `assetId` field in all entity classes is documented as "Unique identifier from Tableau (LUID)" (see line 30-32 in each entity class), but in practice it consistently stores the `id` field for reliability and consistency.
 
 ---
 
@@ -116,49 +118,19 @@ nodes {
 
 ### Extraction Logic
 
-The application uses the `extractAssetId()` method in `BaseAssetService.java` (lines 105-114) which implements the following strategy:
+**Simple and Consistent**: All services use direct `id` extraction for reliability and consistency:
 
 ```java
-protected String extractAssetId(JsonNode node) {
-    if (node == null || node.isMissingNode()) {
-        return null;
-    }
-    String luid = node.path("luid").asText(null);
-    if (luid != null && !luid.isEmpty()) {
-        return luid;  // Prefer LUID
-    }
-    return node.path("id").asText(null);  // Fallback to ID
-}
+String assetId = node.path("id").asText();
 ```
 
-**Priority**: LUID > ID
+**Why This Works**:
+- **`id` is always present** in Tableau API responses
+- **No conditional logic needed** - straightforward extraction
+- **Consistent across all asset types** - eliminates confusion
+- **No null handling required** - `id` is guaranteed to exist
 
-### Why the Fallback Pattern is Critical
-
-The fallback pattern `path("luid").asText(path("id").asText())` is used throughout the codebase because:
-
-1. **API Behavior**: Tableau's GraphQL API returns both `id` and `luid` fields in queries, but:
-   - **`id` is guaranteed** to be present in all responses
-   - **`luid` can be null or missing** in certain scenarios:
-     - Worksheets (sheets) nested within workbooks
-     - Embedded data sources (not published)
-     - Some child objects in the GraphQL hierarchy
-     
-2. **Data Integrity**: By using the fallback, the application ensures:
-   - Every asset gets a valid identifier stored in the database
-   - No records are skipped due to missing `luid`
-   - The application remains robust across different Tableau API versions
-
-3. **Preference for LUID**: When both are available:
-   - `luid` is preferred because it's a UUID format that's more globally unique
-   - `id` is used as a reliable fallback when `luid` is null
-
-**Example Cases Where `luid` is Null**:
-- Sheets queried as nested objects within workbooks
-- Embedded (non-published) data sources
-- Field instances in certain query contexts
-
-However, individual services may have their own extraction patterns:
+The `extractAssetId()` method in `BaseAssetService.java` is no longer used to avoid the complexity and confusion of fallback patterns.
 
 ---
 
@@ -190,14 +162,14 @@ However, individual services may have their own extraction patterns:
   - **Note**: Although both fields are queried, the service explicitly uses `id` field
 
 ### 4. Workbook
-- **Database Storage**: `assetId` (LUID or ID)
+- **Database Storage**: `assetId` (ID)
 - **REST API**: Uses REST client (delegates to GraphQL)
 - **GraphQL API**: Requests both `id` and `luid`
   - Source: `TableauGraphQLClient.java` WORKBOOKS_QUERY lines 180-183
-- **Extraction**: Prefers `luid`, falls back to `id`
+- **Extraction**: Uses `id` directly (no fallback)
   - Source: `WorkbookService.java` line 98
-  - Code: `String assetId = worksheetNode.path("luid").asText(worksheetNode.path("id").asText());`
-  - **Reason**: While workbooks typically have `luid`, the fallback to `id` ensures robustness if `luid` is null.
+  - Code: `String assetId = workbookNode.path("id").asText();`
+  - **Reason**: Using `id` only ensures consistency across all asset types and eliminates confusion about which identifier is stored.
 
 ### 5. Worksheet
 - **Database Storage**: `assetId` (ID)
@@ -210,26 +182,26 @@ However, individual services may have their own extraction patterns:
   - **Reason**: The `luid` field is frequently null for worksheets (sheets are nested objects within workbooks). Using `id` directly ensures data integrity and avoids empty `assetId` values in the database.
 
 ### 6. DataSource
-- **Database Storage**: `assetId` (LUID or ID)
+- **Database Storage**: `assetId` (ID)
 - **REST API**: Uses REST client (delegates to GraphQL)
 - **GraphQL API**: Requests both `id` and `luid`
   - Source: `TableauGraphQLClient.java` PUBLISHED_DATASOURCES_QUERY lines 387-389
-- **Extraction**: Prefers `luid`, falls back to `id`
+- **Extraction**: Uses `id` directly (no fallback)
   - Source: `DataSourceService.java` line 189
-  - Code: `String assetId = dsNode.path("luid").asText(dsNode.path("id").asText());`
-  - **Reason**: Data sources can be embedded or published. Embedded sources may not always have `luid`, so the fallback to `id` is critical.
+  - Code: `String assetId = dsNode.path("id").asText();`
+  - **Reason**: Using `id` only ensures consistency across all asset types and eliminates confusion about which identifier is stored.
 
 ### 7. ReportAttribute (Sheet Field Instance)
-- **Database Storage**: `assetId` (ID or LUID depending on source)
+- **Database Storage**: `assetId` (ID)
 - **REST API**: Not available via REST
 - **GraphQL API**: Only `id` is available (no `luid` field for sheetFieldInstances)
   - Source: `TableauGraphQLClient.java` SHEET_FIELD_INSTANCES_QUERY line 235
 - **Extraction**: Uses `id` field (only option available)
   - Source: `ReportAttributeService.java` line 107
   - Code: `String assetId = fieldNode.path("id").asText();`
-  - **Note**: For related worksheets and datasources, uses `luid` with fallback to `id`
-    - Line 113: `sheetNode.path("luid").asText(sheetNode.path("id").asText(null))`
-    - Line 118: `dsNode.path("luid").asText(dsNode.path("id").asText(null))`
+  - **Note**: For related worksheets and datasources, also uses `id` only for consistency
+    - Line 113: `sheetNode.path("id").asText(null)`
+    - Line 118: `dsNode.path("id").asText(null)`
 
 ---
 
@@ -240,29 +212,25 @@ However, individual services may have their own extraction patterns:
 | **Server** | LUID | Manual/Config | N/A | Manually set | N/A |
 | **Site** | ID | REST API | **id** | Direct `id` extraction | REST API returns `id` |
 | **Project** | ID | GraphQL API | **id** | Direct `id` extraction (both queried) | Service uses `id` directly |
-| **Workbook** | LUID or ID | GraphQL API | **luid** preferred | `luid` with `id` fallback | `luid` usually present, `id` as backup |
+| **Workbook** | ID | GraphQL API | **id** | Direct `id` extraction | Consistent with all assets, eliminates confusion |
 | **Worksheet** | ID | GraphQL API | **id** | Direct `id` extraction | **`luid` is frequently null for sheets, `id` always present** |
-| **DataSource** | LUID or ID | GraphQL API | **luid** preferred | `luid` with `id` fallback | Embedded sources may lack `luid` |
+| **DataSource** | ID | GraphQL API | **id** | Direct `id` extraction | Consistent with all assets, eliminates confusion |
 | **ReportAttribute** | ID | GraphQL API | **id** | Only `id` available | API doesn't provide `luid` |
 
 ---
 
 ## Key Findings
 
-1. **Consistent Storage**: All assets store their identifier in the `assetId` field in the database
-2. **GraphQL Queries**: Most queries request both `id` and `luid` fields from Tableau's GraphQL API
-3. **Why Fallback Pattern Exists**:
+1. **Consistent Approach**: All assets use **`id` only** for simplicity and reliability
+2. **GraphQL Queries**: Most queries request both `id` and `luid` fields, but the application exclusively uses `id`
+3. **Why Use ID Only**:
    - **`id` is always present** in Tableau API responses, guaranteed by the API
-   - **`luid` can be null** for certain asset types, especially:
-     - Nested objects (sheets within workbooks)
-     - Embedded data sources
-     - Some field instances
-   - The fallback pattern `path("luid").asText(path("id").asText())` ensures data integrity by always having an identifier
-4. **Extraction Strategy**:
-   - **Sites and Projects**: Use `id` field directly (despite querying both)
-   - **Workbooks, Worksheets, DataSources**: Prefer `luid`, fallback to `id` (handles null `luid` cases)
-   - **ReportAttributes**: Use `id` only (GraphQL API doesn't provide `luid` for sheetFieldInstances)
-5. **Base Service**: Provides `extractAssetId()` utility that prefers `luid` over `id`, but individual services may override this behavior
+   - **`luid` can be null** for certain asset types (sheets, embedded sources, field instances)
+   - **Eliminates confusion** - Always know which identifier is stored
+   - **Simplifies code** - No need for fallback logic or conditional extraction
+   - **Ensures consistency** - All assets use the same identifier type
+4. **Extraction Strategy**: All services use direct `id` extraction: `node.path("id").asText()`
+5. **No Fallback Pattern**: The previous `extractAssetId()` utility method is no longer used to avoid confusion
 
 ---
 
