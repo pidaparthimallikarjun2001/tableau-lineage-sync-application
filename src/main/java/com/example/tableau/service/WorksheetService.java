@@ -91,22 +91,23 @@ public class WorksheetService extends BaseAssetService {
                         Set<String> processedAssetIds = new HashSet<>();
                         
                         for (JsonNode worksheetNode : worksheets) {
-                            String assetId = worksheetNode.path("luid").asText(worksheetNode.path("id").asText());
+                            // For worksheets, use id directly as luid can be null
+                            String assetId = worksheetNode.path("id").asText();
                             String name = worksheetNode.path("name").asText();
                             
-                            // Workbook info
+                            // Workbook info - use id only
                             JsonNode workbookNode = worksheetNode.path("workbook");
-                            String workbookLuid = !workbookNode.isMissingNode() ? 
-                                    workbookNode.path("luid").asText(workbookNode.path("id").asText(null)) : null;
+                            String workbookId = !workbookNode.isMissingNode() ? 
+                                    workbookNode.path("id").asText(null) : null;
                             
                             processedAssetIds.add(assetId);
                             
-                            String newHash = generateMetadataHash(assetId, name, workbookLuid, currentSiteId);
+                            String newHash = generateMetadataHash(assetId, name, workbookId, currentSiteId);
                             
                             // Find the workbook
                             TableauWorkbook workbook = null;
-                            if (workbookLuid != null) {
-                                workbook = workbookRepository.findByAssetIdAndSiteId(workbookLuid, currentSiteId).orElse(null);
+                            if (workbookId != null) {
+                                workbook = workbookRepository.findByAssetIdAndSiteId(workbookId, currentSiteId).orElse(null);
                             }
                             
                             Optional<TableauWorksheet> existingWorksheet = worksheetRepository.findByAssetIdAndSiteId(assetId, currentSiteId);

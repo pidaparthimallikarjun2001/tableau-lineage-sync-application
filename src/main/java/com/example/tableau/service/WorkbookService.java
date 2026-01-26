@@ -95,7 +95,8 @@ public class WorkbookService extends BaseAssetService {
                         Set<String> processedAssetIds = new HashSet<>();
                         
                         for (JsonNode workbookNode : workbooks) {
-                            String assetId = workbookNode.path("luid").asText(workbookNode.path("id").asText());
+                            // Use id only for consistency across all assets
+                            String assetId = workbookNode.path("id").asText();
                             String name = workbookNode.path("name").asText();
                             String description = workbookNode.path("description").asText(null);
                             String projectName = workbookNode.path("projectName").asText(null);

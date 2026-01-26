@@ -186,7 +186,8 @@ public class DataSourceService extends BaseAssetService {
                                      boolean isPublished, Set<String> processedAssetIds) {
         int newCount = 0, updatedCount = 0, unchangedCount = 0;
         
-        String assetId = dsNode.path("luid").asText(dsNode.path("id").asText());
+        // Use id only for consistency across all assets
+        String assetId = dsNode.path("id").asText();
         String name = dsNode.path("name").asText();
         String description = dsNode.path("description").asText(null);
         boolean isCertified = dsNode.path("isCertified").asBoolean(false);
@@ -266,10 +267,10 @@ public class DataSourceService extends BaseAssetService {
         String assetId = dsNode.path("id").asText();
         String name = dsNode.path("name").asText();
         
-        // Workbook info
+        // Workbook info - use id only
         JsonNode workbookNode = dsNode.path("workbook");
-        String workbookLuid = !workbookNode.isMissingNode() ? 
-                workbookNode.path("luid").asText(workbookNode.path("id").asText(null)) : null;
+        String workbookId = !workbookNode.isMissingNode() ? 
+                workbookNode.path("id").asText(null) : null;
         
         // Determine source type
         SourceType sourceType = SourceType.DIRECT_IMPORT;
@@ -303,12 +304,12 @@ public class DataSourceService extends BaseAssetService {
         
         processedAssetIds.add(assetId);
         
-        String newHash = generateMetadataHash(assetId, name, workbookLuid, connectionType, 
+        String newHash = generateMetadataHash(assetId, name, workbookId, connectionType, 
                 tableName, upstreamTables, siteId);
         
         // Find workbook
-        TableauWorkbook workbook = workbookLuid != null ? 
-                workbookRepository.findByAssetIdAndSiteId(workbookLuid, siteId).orElse(null) : null;
+        TableauWorkbook workbook = workbookId != null ? 
+                workbookRepository.findByAssetIdAndSiteId(workbookId, siteId).orElse(null) : null;
         
         Optional<TableauDataSource> existingDs = dataSourceRepository.findByAssetIdAndSiteId(assetId, siteId);
         
