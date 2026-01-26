@@ -24,7 +24,7 @@ This application uses a smart extraction strategy that accounts for these API be
 | Site | `asset_id` | **ID** (from REST API) | `assetId` (String) |
 | Project | `asset_id` | **ID** (from GraphQL) | `assetId` (String) |
 | Workbook | `asset_id` | **LUID** or **ID** (fallback) | `assetId` (String) |
-| Worksheet | `asset_id` | **LUID** or **ID** (fallback) | `assetId` (String) |
+| Worksheet | `asset_id` | **ID** (always) | `assetId` (String) |
 | DataSource | `asset_id` | **LUID** or **ID** (fallback) | `assetId` (String) |
 | ReportAttribute | `asset_id` | **ID** (only available) | `assetId` (String) |
 
@@ -200,15 +200,14 @@ However, individual services may have their own extraction patterns:
   - **Reason**: While workbooks typically have `luid`, the fallback to `id` ensures robustness if `luid` is null.
 
 ### 5. Worksheet
-- **Database Storage**: `assetId` (LUID or ID)
+- **Database Storage**: `assetId` (ID)
 - **REST API**: Uses REST client (delegates to GraphQL)
 - **GraphQL API**: Requests both `id` and `luid`
   - Source: `TableauGraphQLClient.java` WORKSHEETS_QUERY lines 226-228
-- **Extraction**: Prefers `luid`, falls back to `id`
+- **Extraction**: Uses `id` directly (no fallback)
   - Source: `WorksheetService.java` line 94
-  - Code: `String assetId = worksheetNode.path("luid").asText(worksheetNode.path("id").asText());`
-  - **Reason**: The `luid` field can be null for sheets in some contexts, but `id` is always present. The fallback ensures we always capture an identifier.
-  - Code: `String assetId = worksheetNode.path("luid").asText(worksheetNode.path("id").asText());`
+  - Code: `String assetId = worksheetNode.path("id").asText();`
+  - **Reason**: The `luid` field is frequently null for worksheets (sheets are nested objects within workbooks). Using `id` directly ensures data integrity and avoids empty `assetId` values in the database.
 
 ### 6. DataSource
 - **Database Storage**: `assetId` (LUID or ID)
@@ -242,7 +241,7 @@ However, individual services may have their own extraction patterns:
 | **Site** | ID | REST API | **id** | Direct `id` extraction | REST API returns `id` |
 | **Project** | ID | GraphQL API | **id** | Direct `id` extraction (both queried) | Service uses `id` directly |
 | **Workbook** | LUID or ID | GraphQL API | **luid** preferred | `luid` with `id` fallback | `luid` usually present, `id` as backup |
-| **Worksheet** | LUID or ID | GraphQL API | **luid** preferred | `luid` with `id` fallback | **`luid` can be null, `id` always present** |
+| **Worksheet** | ID | GraphQL API | **id** | Direct `id` extraction | **`luid` is frequently null for sheets, `id` always present** |
 | **DataSource** | LUID or ID | GraphQL API | **luid** preferred | `luid` with `id` fallback | Embedded sources may lack `luid` |
 | **ReportAttribute** | ID | GraphQL API | **id** | Only `id` available | API doesn't provide `luid` |
 

@@ -610,11 +610,11 @@ public class TableauGraphQLClient {
                                     enhancedInstance.put("datasource", mapper.convertValue(datasource, Map.class));
                                 }
                                 
-                                // Add sheet context
+                                // Add sheet context (use id only for worksheets)
                                 Map<String, Object> sheetContext = new HashMap<>();
                                 sheetContext.put("id", sheet.path("id").asText());
                                 sheetContext.put("name", sheet.path("name").asText());
-                                sheetContext.put("luid", sheet.path("luid").asText());
+                                // Note: luid not used for worksheets as it's frequently null
                                 
                                 // Add workbook context
                                 JsonNode workbook = sheet.path("workbook");

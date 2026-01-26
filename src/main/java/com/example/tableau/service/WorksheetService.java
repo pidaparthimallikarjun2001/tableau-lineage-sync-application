@@ -91,13 +91,14 @@ public class WorksheetService extends BaseAssetService {
                         Set<String> processedAssetIds = new HashSet<>();
                         
                         for (JsonNode worksheetNode : worksheets) {
-                            String assetId = worksheetNode.path("luid").asText(worksheetNode.path("id").asText());
+                            // For worksheets, use id directly as luid can be null
+                            String assetId = worksheetNode.path("id").asText();
                             String name = worksheetNode.path("name").asText();
                             
                             // Workbook info
                             JsonNode workbookNode = worksheetNode.path("workbook");
                             String workbookLuid = !workbookNode.isMissingNode() ? 
-                                    workbookNode.path("luid").asText(workbookNode.path("id").asText(null)) : null;
+                                    extractAssetId(workbookNode) : null;
                             
                             processedAssetIds.add(assetId);
                             
