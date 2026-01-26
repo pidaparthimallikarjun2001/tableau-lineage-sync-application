@@ -114,9 +114,10 @@ public class SiteService extends BaseAssetService {
                                     updatedCount++;
                                     log.info("Updated site: {}", name);
                                 } else {
-                                    if (site.getStatusFlag() != StatusFlag.ACTIVE && 
+                                    // Use the status determined by determineStatusFlag method
+                                    if (site.getStatusFlag() != newStatus && 
                                         site.getStatusFlag() != StatusFlag.DELETED) {
-                                        site.setStatusFlag(StatusFlag.ACTIVE);
+                                        site.setStatusFlag(newStatus);
                                         siteRepository.save(site);
                                     }
                                     unchangedCount++;

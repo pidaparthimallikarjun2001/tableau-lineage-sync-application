@@ -125,9 +125,10 @@ public class WorksheetService extends BaseAssetService {
                                     updatedCount++;
                                     log.info("Updated worksheet: {}", name);
                                 } else {
-                                    if (worksheet.getStatusFlag() != StatusFlag.ACTIVE && 
+                                    // Use the status determined by determineStatusFlag method
+                                    if (worksheet.getStatusFlag() != newStatus && 
                                         worksheet.getStatusFlag() != StatusFlag.DELETED) {
-                                        worksheet.setStatusFlag(StatusFlag.ACTIVE);
+                                        worksheet.setStatusFlag(newStatus);
                                         worksheetRepository.save(worksheet);
                                     }
                                     unchangedCount++;

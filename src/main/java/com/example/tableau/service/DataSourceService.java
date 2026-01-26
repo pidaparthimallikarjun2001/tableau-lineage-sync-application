@@ -242,8 +242,9 @@ public class DataSourceService extends BaseAssetService {
                 updatedCount++;
                 log.info("Updated data source: {}", name);
             } else {
-                if (ds.getStatusFlag() != StatusFlag.ACTIVE && ds.getStatusFlag() != StatusFlag.DELETED) {
-                    ds.setStatusFlag(StatusFlag.ACTIVE);
+                // Use the status determined by determineStatusFlag method
+                if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
+                    ds.setStatusFlag(newStatus);
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;
@@ -325,8 +326,9 @@ public class DataSourceService extends BaseAssetService {
                 updatedCount++;
                 log.info("Updated embedded data source: {}", name);
             } else {
-                if (ds.getStatusFlag() != StatusFlag.ACTIVE && ds.getStatusFlag() != StatusFlag.DELETED) {
-                    ds.setStatusFlag(StatusFlag.ACTIVE);
+                // Use the status determined by determineStatusFlag method
+                if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
+                    ds.setStatusFlag(newStatus);
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;
@@ -381,8 +383,9 @@ public class DataSourceService extends BaseAssetService {
                 updatedCount++;
                 log.info("Updated custom SQL table: {}", name);
             } else {
-                if (ds.getStatusFlag() != StatusFlag.ACTIVE && ds.getStatusFlag() != StatusFlag.DELETED) {
-                    ds.setStatusFlag(StatusFlag.ACTIVE);
+                // Use the status determined by determineStatusFlag method
+                if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
+                    ds.setStatusFlag(newStatus);
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;

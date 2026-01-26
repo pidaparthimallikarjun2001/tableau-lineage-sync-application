@@ -123,9 +123,10 @@ public class ProjectService extends BaseAssetService {
                                     updatedCount++;
                                     log.info("Updated project: {}", name);
                                 } else {
-                                    if (project.getStatusFlag() != StatusFlag.ACTIVE && 
+                                    // Use the status determined by determineStatusFlag method
+                                    if (project.getStatusFlag() != newStatus && 
                                         project.getStatusFlag() != StatusFlag.DELETED) {
-                                        project.setStatusFlag(StatusFlag.ACTIVE);
+                                        project.setStatusFlag(newStatus);
                                         projectRepository.save(project);
                                     }
                                     unchangedCount++;

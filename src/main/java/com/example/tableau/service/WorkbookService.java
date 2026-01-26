@@ -146,9 +146,10 @@ public class WorkbookService extends BaseAssetService {
                                     updatedCount++;
                                     log.info("Updated workbook: {}", name);
                                 } else {
-                                    if (workbook.getStatusFlag() != StatusFlag.ACTIVE && 
+                                    // Use the status determined by determineStatusFlag method
+                                    if (workbook.getStatusFlag() != newStatus && 
                                         workbook.getStatusFlag() != StatusFlag.DELETED) {
-                                        workbook.setStatusFlag(StatusFlag.ACTIVE);
+                                        workbook.setStatusFlag(newStatus);
                                         workbookRepository.save(workbook);
                                     }
                                     unchangedCount++;
