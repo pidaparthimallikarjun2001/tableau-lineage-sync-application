@@ -208,6 +208,8 @@ This application stores Tableau metadata in a local database. Each entity has tw
 - Database ID endpoint: `GET /api/sites/1` (retrieves site with database primary key = 1)
 - Asset ID endpoint: `GET /api/sites/asset/a1b2c3d4-e5f6-7890-abcd-ef1234567890` (retrieves site by Tableau LUID)
 
+**For detailed information** about which identifiers (id vs luid) are used when querying from Tableau and storing in the database for each asset type, see [IDENTIFIER_USAGE.md](IDENTIFIER_USAGE.md).
+
 ### Authentication & Site Management
 
 | Method | Endpoint | Description |
