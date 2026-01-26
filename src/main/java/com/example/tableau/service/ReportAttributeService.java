@@ -196,9 +196,10 @@ public class ReportAttributeService extends BaseAssetService {
                                     updatedCount++;
                                     log.info("Updated report attribute: {}", name);
                                 } else {
-                                    if (attr.getStatusFlag() != StatusFlag.ACTIVE && 
+                                    // Use the status determined by determineStatusFlag method
+                                    if (attr.getStatusFlag() != newStatus && 
                                         attr.getStatusFlag() != StatusFlag.DELETED) {
-                                        attr.setStatusFlag(StatusFlag.ACTIVE);
+                                        attr.setStatusFlag(newStatus);
                                         reportAttributeRepository.save(attr);
                                     }
                                     unchangedCount++;

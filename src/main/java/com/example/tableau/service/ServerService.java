@@ -105,9 +105,9 @@ public class ServerService extends BaseAssetService {
                                 updatedCount = 1;
                                 log.info("Updated server: {}", name);
                             } else {
-                                // No changes, mark as active if it was new/updated before
-                                if (server.getStatusFlag() != StatusFlag.ACTIVE) {
-                                    server.setStatusFlag(StatusFlag.ACTIVE);
+                                // Use the status determined by determineStatusFlag method
+                                if (server.getStatusFlag() != newStatus) {
+                                    server.setStatusFlag(newStatus);
                                     serverRepository.save(server);
                                 }
                                 unchangedCount = 1;
