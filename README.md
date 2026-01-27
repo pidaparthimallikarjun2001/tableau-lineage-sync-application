@@ -327,6 +327,19 @@ Access the H2 database console at: `http://localhost:8080/h2-console`
 
 **Note**: The H2 database now uses file-based persistence. Database files are stored in the `./data/` directory, and data will persist across application restarts.
 
+## Documentation
+
+Comprehensive documentation is available for various aspects of the application:
+
+| Document | Description |
+|----------|-------------|
+| **[TABLE_SCHEMA_REFERENCE.md](TABLE_SCHEMA_REFERENCE.md)** | Detailed schema reference for `report_attribute` and `tableau_datasource` tables with column descriptions and SQL examples |
+| **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)** | Which fields trigger change detection (UPDATED status) for each asset type |
+| **[IDENTIFIER_USAGE.md](IDENTIFIER_USAGE.md)** | Explanation of ID vs LUID usage across different Tableau assets |
+| **[UPDATED_STATUS_EXPLAINED.md](UPDATED_STATUS_EXPLAINED.md)** | How the change tracking and UPDATED status works |
+| **[QUICK_ANSWER.md](QUICK_ANSWER.md)** | Quick 30-second test to see the UPDATED status in action |
+| **[SEEING_UPDATED_STATUS.md](SEEING_UPDATED_STATUS.md)** | Step-by-step guide to testing change detection |
+
 ## Troubleshooting
 
 ### Common Issues
