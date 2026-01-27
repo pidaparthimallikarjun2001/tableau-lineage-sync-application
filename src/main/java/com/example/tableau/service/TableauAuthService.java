@@ -49,17 +49,8 @@ public class TableauAuthService {
         if (token.get() != null && Instant.now().isBefore(tokenExpiry.minusSeconds(30))) {
             return Mono.just(token.get());
         }
-        return signIn(currentSiteContentUrl.get()).map(response -> {
-            token.set(response.getAuthToken());
-            currentSiteId.set(response.getSiteId());
-            currentSiteName.set(response.getSiteName());
-            currentSiteContentUrl.set(response.getSiteContentUrl());
-            apiConfig.setCurrentAuthToken(response.getAuthToken());
-            apiConfig.setCurrentSiteId(response.getSiteId());
-            apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
-            tokenExpiry = Instant.now().plusSeconds(50 * 60);
-            return response.getAuthToken();
-        });
+        // signIn() now updates internal state, so we just need to extract the token
+        return signIn(currentSiteContentUrl.get()).map(SiteSwitchResponse::getAuthToken);
     }
 
     /**
@@ -67,10 +58,10 @@ public class TableauAuthService {
      */
     public Mono<SiteSwitchResponse> signIn(String siteContentUrl) {
         String signinUrl = "/api/" + apiConfig.getApiVersion() + "/auth/signin";
-        String targetSite = siteContentUrl != null ? siteContentUrl : 
-                           (apiConfig.getDefaultSiteId() != null ? apiConfig.getDefaultSiteId() : "");
+        String targetSite = normalizeSiteContentUrl(siteContentUrl);
         
-        log.info("Signing in to Tableau at {} for site: {}", apiConfig.getBaseUrl(), targetSite);
+        log.info("Signing in to Tableau at {} for site: {}", apiConfig.getBaseUrl(), 
+                 targetSite.isEmpty() ? "<default>" : targetSite);
         
         try {
             Map<String, Object> payload;
@@ -95,10 +86,10 @@ public class TableauAuthService {
                     .retrieve()
                     .bodyToMono(String.class)
                     .map(this::parseSignInResponse)
+                    .doOnSuccess(this::updateAuthenticationState)
                     .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
                             .filter(this::isRetryableError)
                             .doBeforeRetry(signal -> log.warn("Retrying sign-in, attempt {}", signal.totalRetries() + 1)))
-                    .doOnSuccess(response -> log.info("Successfully signed in to site: {}", response.getSiteName()))
                     .doOnError(e -> log.error("Failed to sign in to Tableau: {}", e.getMessage()));
         } catch (Exception e) {
             log.error("Error preparing sign-in request: {}", e.getMessage(), e);
@@ -111,13 +102,14 @@ public class TableauAuthService {
      * Uses the REST API switchSite method.
      */
     public Mono<SiteSwitchResponse> switchSite(String siteContentUrl) {
-        log.info("Switching to site: {}", siteContentUrl);
+        String normalizedSite = normalizeSiteContentUrl(siteContentUrl);
+        log.info("Switching to site: {}", normalizedSite.isEmpty() ? "<default>" : normalizedSite);
         
         return getAuthToken()
                 .flatMap(authToken -> {
                     String switchUrl = "/api/" + apiConfig.getApiVersion() + "/auth/switchSite";
                     try {
-                        Map<String, Object> payload = Map.of("site", Map.of("contentUrl", siteContentUrl));
+                        Map<String, Object> payload = Map.of("site", Map.of("contentUrl", normalizedSite));
                         
                         return webClient.post()
                                 .uri(switchUrl)
@@ -127,17 +119,7 @@ public class TableauAuthService {
                                 .retrieve()
                                 .bodyToMono(String.class)
                                 .map(this::parseSignInResponse)
-                                .doOnSuccess(response -> {
-                                    token.set(response.getAuthToken());
-                                    currentSiteId.set(response.getSiteId());
-                                    currentSiteName.set(response.getSiteName());
-                                    currentSiteContentUrl.set(response.getSiteContentUrl());
-                                    apiConfig.setCurrentAuthToken(response.getAuthToken());
-                                    apiConfig.setCurrentSiteId(response.getSiteId());
-                                    apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
-                                    tokenExpiry = Instant.now().plusSeconds(50 * 60);
-                                    log.info("Successfully switched to site: {}", response.getSiteName());
-                                })
+                                .doOnSuccess(this::updateAuthenticationState)
                                 .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
                                         .filter(this::isRetryableError));
                     } catch (Exception e) {
@@ -239,5 +221,46 @@ public class TableauAuthService {
             return status == 429 || status >= 500;
         }
         return false;
+    }
+
+    /**
+     * Normalize site content URL.
+     * Maps "default" (case-insensitive) to empty string for Tableau API calls.
+     * Also handles null values and uses configured default site if needed.
+     */
+    private String normalizeSiteContentUrl(String siteContentUrl) {
+        // If explicitly provided and is "default" (case-insensitive), map to empty string
+        if (siteContentUrl != null && "default".equalsIgnoreCase(siteContentUrl.trim())) {
+            return "";
+        }
+        
+        // If provided and not "default", use as-is
+        if (siteContentUrl != null && !siteContentUrl.trim().isEmpty()) {
+            return siteContentUrl.trim();
+        }
+        
+        // If null or empty, use configured default site (which may also be empty for default site)
+        String defaultSite = apiConfig.getDefaultSiteId();
+        if (defaultSite != null && "default".equalsIgnoreCase(defaultSite.trim())) {
+            return "";
+        }
+        
+        return defaultSite != null ? defaultSite : "";
+    }
+
+    /**
+     * Update internal authentication state from a successful authentication response.
+     * Centralizes state management to avoid duplication.
+     */
+    private void updateAuthenticationState(SiteSwitchResponse response) {
+        token.set(response.getAuthToken());
+        currentSiteId.set(response.getSiteId());
+        currentSiteName.set(response.getSiteName());
+        currentSiteContentUrl.set(response.getSiteContentUrl());
+        apiConfig.setCurrentAuthToken(response.getAuthToken());
+        apiConfig.setCurrentSiteId(response.getSiteId());
+        apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
+        tokenExpiry = Instant.now().plusSeconds(50 * 60);
+        log.info("Successfully authenticated to site: {}", response.getSiteName());
     }
 }
