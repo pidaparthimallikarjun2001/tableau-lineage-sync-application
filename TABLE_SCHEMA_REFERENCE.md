@@ -706,8 +706,11 @@ Data is extracted from Tableau's Metadata API (GraphQL):
 - **Report Attributes**: `sheetFieldInstances` query with upstream field lineage
 - **Data Sources**: `publishedDatasources` and embedded data source queries
 
-For more details on GraphQL queries, see `TableauGraphQLClient.java` (lines 128-562).
+For more details on GraphQL queries, see `TableauGraphQLClient.java`:
+- SHEET_FIELD_INSTANCES_QUERY: Queries for report attributes with lineage
+- PUBLISHED_DATASOURCES_QUERY: Queries for published data sources
+- EMBEDDED_DATASOURCES_QUERY: Queries for embedded data sources within workbooks
 
 ---
 
-*Last Updated: 2026-01-27*
+*Last Updated: 2024-01-27*
