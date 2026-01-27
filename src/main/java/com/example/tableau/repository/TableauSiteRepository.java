@@ -35,5 +35,11 @@ public interface TableauSiteRepository extends JpaRepository<TableauSite, Long> 
     @Query("SELECT s FROM TableauSite s WHERE s.statusFlag != 'DELETED'")
     List<TableauSite> findAllActive();
 
+    @Query("SELECT s FROM TableauSite s LEFT JOIN FETCH s.server WHERE s.id = :id")
+    Optional<TableauSite> findByIdWithServer(@Param("id") Long id);
+
+    @Query("SELECT DISTINCT s FROM TableauSite s LEFT JOIN FETCH s.server")
+    List<TableauSite> findAllWithServer();
+
     boolean existsByAssetId(String assetId);
 }

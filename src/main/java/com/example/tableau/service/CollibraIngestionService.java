@@ -156,7 +156,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<TableauSite> sites = siteRepository.findAll();
+        List<TableauSite> sites = siteRepository.findAllWithServer();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<TableauSite> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -192,7 +192,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        return siteRepository.findById(siteId)
+        return siteRepository.findByIdWithServer(siteId)
                 .map(site -> {
                     CollibraAsset asset = mapSiteToCollibraAsset(site);
                     return collibraClient.importAssets(List.of(asset), "Site");
