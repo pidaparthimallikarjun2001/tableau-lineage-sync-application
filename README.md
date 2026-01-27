@@ -276,6 +276,8 @@ The application uses metadata hashing for efficient change detection:
    - Hash same → `ACTIVE`
    - Not in Tableau → `DELETED`
 
+**Important:** Only specific metadata fields are tracked for each asset type. For detailed information on which fields trigger the `UPDATED` status and examples of changes to make in Tableau, see **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)**.
+
 ## GraphQL Queries
 
 The application uses Tableau's Metadata API (GraphQL) for detailed metadata including:
