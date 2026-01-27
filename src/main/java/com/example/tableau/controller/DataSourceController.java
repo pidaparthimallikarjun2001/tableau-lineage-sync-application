@@ -1,8 +1,10 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.TableauDataSource;
 import com.example.tableau.enums.SourceType;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.DataSourceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,9 +28,11 @@ import java.util.List;
 public class DataSourceController {
 
     private final DataSourceService dataSourceService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public DataSourceController(DataSourceService dataSourceService) {
+    public DataSourceController(DataSourceService dataSourceService, CollibraIngestionService collibraIngestionService) {
         this.dataSourceService = dataSourceService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -162,6 +166,37 @@ public class DataSourceController {
     @PostMapping("/ingest")
     public ResponseEntity<IngestionResult> ingestDataSources() {
         IngestionResult result = dataSourceService.ingestDataSources().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest data sources to Collibra",
+        description = "Ingest all data sources from the database to Collibra. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestDataSourcesToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single data source to Collibra",
+        description = "Ingest a specific data source from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Data source not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestDataSourceToCollibra(
+            @Parameter(description = "Database ID of the data source")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestDataSourceToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
 }

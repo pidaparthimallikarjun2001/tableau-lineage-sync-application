@@ -1,7 +1,9 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.ReportAttribute;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.ReportAttributeService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,9 +27,11 @@ import java.util.List;
 public class ReportAttributeController {
 
     private final ReportAttributeService reportAttributeService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public ReportAttributeController(ReportAttributeService reportAttributeService) {
+    public ReportAttributeController(ReportAttributeService reportAttributeService, CollibraIngestionService collibraIngestionService) {
         this.reportAttributeService = reportAttributeService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -110,6 +114,37 @@ public class ReportAttributeController {
     @PostMapping("/ingest")
     public ResponseEntity<IngestionResult> ingestReportAttributes() {
         IngestionResult result = reportAttributeService.ingestReportAttributes().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest report attributes to Collibra",
+        description = "Ingest all report attributes from the database to Collibra. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestReportAttributesToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single report attribute to Collibra",
+        description = "Ingest a specific report attribute from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Report attribute not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestReportAttributeToCollibra(
+            @Parameter(description = "Database ID of the report attribute")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestReportAttributeToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
 }
