@@ -2,6 +2,15 @@
 
 A comprehensive Java Spring Boot application that integrates with Tableau's REST and GraphQL (Metadata) APIs to extract, store, and track changes in Tableau metadata and lineage information.
 
+## 📌 Quick Start: Seeing the UPDATED Status
+
+**New to this app and want to see the UPDATED status?** See **[QUICK_ANSWER.md](QUICK_ANSWER.md)** for a 30-second test.
+
+**Key Points:**
+- ✅ Works for: Projects, Workbooks, Published Data Sources
+- ❌ Doesn't work for: Worksheets (they show DELETE + NEW due to Tableau's ID behavior)
+- See **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)** for complete details
+
 ## Features
 
 ### Core Functionality
@@ -275,6 +284,8 @@ The application uses metadata hashing for efficient change detection:
    - Hash different → `UPDATED`
    - Hash same → `ACTIVE`
    - Not in Tableau → `DELETED`
+
+**Important:** Only specific metadata fields are tracked for each asset type. For detailed information on which fields trigger the `UPDATED` status and examples of changes to make in Tableau, see **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)**.
 
 ## GraphQL Queries
 
