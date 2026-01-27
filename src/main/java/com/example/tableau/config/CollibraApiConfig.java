@@ -189,9 +189,17 @@ public class CollibraApiConfig {
     }
 
     /**
-     * Get the domain name for a given asset type
+     * Get the domain name for a given asset type.
+     * 
+     * @param assetType the type of asset (e.g., "SERVER", "WORKBOOK")
+     * @return the configured domain name for the asset type
+     * @throws IllegalArgumentException if the asset type is unknown
      */
     public String getDomainNameForAssetType(String assetType) {
+        if (assetType == null || assetType.trim().isEmpty()) {
+            throw new IllegalArgumentException("Asset type cannot be null or empty");
+        }
+        
         return switch (assetType.toUpperCase()) {
             case "SERVER" -> serverDomainName;
             case "SITE" -> siteDomainName;
@@ -200,7 +208,8 @@ public class CollibraApiConfig {
             case "WORKSHEET" -> worksheetDomainName;
             case "DATASOURCE" -> datasourceDomainName;
             case "REPORTATTRIBUTE" -> reportAttributeDomainName;
-            default -> "Tableau Technology";
+            default -> throw new IllegalArgumentException("Unknown asset type: " + assetType + 
+                    ". Supported types: SERVER, SITE, PROJECT, WORKBOOK, WORKSHEET, DATASOURCE, REPORTATTRIBUTE");
         };
     }
 }

@@ -63,32 +63,8 @@ public class CollibraRestClient {
     }
 
     private WebClient createWebClient() {
-        HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getConnectionTimeout())
-                .responseTimeout(Duration.ofMillis(config.getReadTimeout()))
-                .doOnConnected(conn -> conn
-                        .addHandlerLast(new ReadTimeoutHandler(config.getReadTimeout(), TimeUnit.MILLISECONDS))
-                        .addHandlerLast(new WriteTimeoutHandler(config.getReadTimeout(), TimeUnit.MILLISECONDS)));
-
-        // Configure proxy if enabled
-        if (config.isProxyEnabled() && config.getProxyHost() != null && !config.getProxyHost().isEmpty()) {
-            log.info("Configuring proxy for Collibra: {}:{}", config.getProxyHost(), config.getProxyPort());
-            httpClient = httpClient.proxy(proxy -> {
-                ProxyProvider.Builder proxyBuilder = proxy
-                        .type(ProxyProvider.Proxy.HTTP)
-                        .host(config.getProxyHost())
-                        .port(config.getProxyPort());
-                
-                // Add proxy authentication if configured
-                if (config.getProxyUsername() != null && !config.getProxyUsername().isEmpty()) {
-                    proxyBuilder.username(config.getProxyUsername())
-                               .password(s -> config.getProxyPassword());
-                }
-            });
-        }
-
-        String credentials = config.getUsername() + ":" + config.getPassword();
-        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        HttpClient httpClient = createHttpClient();
+        String encodedCredentials = createEncodedCredentials();
 
         return WebClient.builder()
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
@@ -97,6 +73,41 @@ public class CollibraRestClient {
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
+    }
+
+    private HttpClient createHttpClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, config.getConnectionTimeout())
+                .responseTimeout(Duration.ofMillis(config.getReadTimeout()))
+                .doOnConnected(conn -> conn
+                        .addHandlerLast(new ReadTimeoutHandler(config.getReadTimeout(), TimeUnit.MILLISECONDS))
+                        .addHandlerLast(new WriteTimeoutHandler(config.getReadTimeout(), TimeUnit.MILLISECONDS)));
+
+        return configureProxy(httpClient);
+    }
+
+    private HttpClient configureProxy(HttpClient httpClient) {
+        if (!config.isProxyEnabled() || config.getProxyHost() == null || config.getProxyHost().isEmpty()) {
+            return httpClient;
+        }
+
+        log.info("Configuring proxy for Collibra: {}:{}", config.getProxyHost(), config.getProxyPort());
+        return httpClient.proxy(proxy -> {
+            ProxyProvider.Builder proxyBuilder = proxy
+                    .type(ProxyProvider.Proxy.HTTP)
+                    .host(config.getProxyHost())
+                    .port(config.getProxyPort());
+
+            if (config.getProxyUsername() != null && !config.getProxyUsername().isEmpty()) {
+                proxyBuilder.username(config.getProxyUsername())
+                           .password(s -> config.getProxyPassword());
+            }
+        });
+    }
+
+    private String createEncodedCredentials() {
+        String credentials = config.getUsername() + ":" + config.getPassword();
+        return Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -162,8 +173,7 @@ public class CollibraRestClient {
                     .onErrorResume(e -> handleError(e, assetType));
 
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize import payload: {}", e.getMessage(), e);
-            return Mono.just(CollibraIngestionResult.failure(assetType, "Failed to serialize import payload: " + e.getMessage()));
+            return handleJsonSerializationError(e, assetType, "import payload");
         }
     }
 
@@ -197,8 +207,7 @@ public class CollibraRestClient {
                     .onErrorResume(e -> handleError(e, assetType));
 
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize bulk create payload: {}", e.getMessage(), e);
-            return Mono.just(CollibraIngestionResult.failure(assetType, "Failed to serialize payload: " + e.getMessage()));
+            return handleJsonSerializationError(e, assetType, "bulk create payload");
         }
     }
 
@@ -321,5 +330,10 @@ public class CollibraRestClient {
         }
         log.error("Collibra ingestion error: {}", e.getMessage(), e);
         return Mono.just(CollibraIngestionResult.failure(assetType, "Collibra error: " + e.getMessage()));
+    }
+
+    private Mono<CollibraIngestionResult> handleJsonSerializationError(JsonProcessingException e, String assetType, String context) {
+        log.error("Failed to serialize {}: {}", context, e.getMessage(), e);
+        return Mono.just(CollibraIngestionResult.failure(assetType, "Failed to serialize " + context + ": " + e.getMessage()));
     }
 }
