@@ -62,3 +62,6 @@ spring-shell.log
 *.db
 *.trace.db
 *.lock.db
+
+# H2 Database data directory (file-based persistence)
+/data/
