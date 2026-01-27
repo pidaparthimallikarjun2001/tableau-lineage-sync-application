@@ -14,6 +14,8 @@ Tableau provides two types of identifiers for most assets:
 3. **Guarantee reliability** - `id` is always present (unlike `luid` which can be null)
 4. **Simplify code** - No need for fallback logic or conditional extraction
 
+> **⚠️ Important Note on ID Uniqueness**: Tableau asset IDs are **NOT globally unique across sites**. The same asset ID can exist in different sites. This application uses composite unique constraints `(assetId, siteId)` to ensure data integrity. See **[ASSET_ID_UNIQUENESS.md](ASSET_ID_UNIQUENESS.md)** for details.
+
 ---
 
 ## Database Storage

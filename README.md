@@ -11,6 +11,15 @@ A comprehensive Java Spring Boot application that integrates with Tableau's REST
 - ❌ Doesn't work for: Worksheets (they show DELETE + NEW due to Tableau's ID behavior)
 - See **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)** for complete details
 
+## ⚠️ Important: Asset ID Uniqueness
+
+**Are Tableau asset IDs unique across all sites?** **NO** - Tableau asset IDs are **NOT globally unique**. The same asset ID can exist in different sites.
+
+This application correctly handles multi-site scenarios using composite unique constraints `(assetId, siteId)`. See **[ASSET_ID_UNIQUENESS.md](ASSET_ID_UNIQUENESS.md)** for complete details on:
+- Why IDs are not globally unique
+- How this application ensures data integrity
+- Best practices for multi-site deployments
+
 ## Features
 
 ### Core Functionality
@@ -333,6 +342,7 @@ Comprehensive documentation is available for various aspects of the application:
 
 | Document | Description |
 |----------|-------------|
+| **[ASSET_ID_UNIQUENESS.md](ASSET_ID_UNIQUENESS.md)** | **Are Tableau asset IDs unique across sites?** Comprehensive explanation of ID uniqueness scoping and multi-site data integrity |
 | **[TABLE_SCHEMA_REFERENCE.md](TABLE_SCHEMA_REFERENCE.md)** | Detailed schema reference for `report_attribute` and `tableau_datasource` tables with column descriptions and SQL examples |
 | **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)** | Which fields trigger change detection (UPDATED status) for each asset type |
 | **[IDENTIFIER_USAGE.md](IDENTIFIER_USAGE.md)** | Explanation of ID vs LUID usage across different Tableau assets |
