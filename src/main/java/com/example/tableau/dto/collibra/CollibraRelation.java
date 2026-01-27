@@ -5,7 +5,9 @@ import lombok.*;
 
 /**
  * DTO representing a relation between two Collibra assets.
+ * @deprecated Use Map<String, List<CollibraRelationTarget>> in CollibraAsset instead
  */
+@Deprecated
 @Data
 @Builder
 @NoArgsConstructor

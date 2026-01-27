@@ -18,16 +18,15 @@ import java.util.Map;
 public class CollibraAsset {
 
     /**
-     * External entity ID - Used to uniquely identify the asset.
-     * Format: siteid>assetid>assetname
+     * Resource type - always "Asset" for assets.
      */
-    private String externalEntityId;
+    @Builder.Default
+    private String resourceType = "Asset";
 
     /**
-     * Full name of the asset (unique identifier).
-     * Format: siteid>assetid>assetname
+     * Type of the asset.
      */
-    private String fullName;
+    private CollibraType type;
 
     /**
      * Display name of the asset (human-readable name from Tableau).
@@ -35,48 +34,47 @@ public class CollibraAsset {
     private String displayName;
 
     /**
-     * Name of the asset type in Collibra (e.g., "Tableau Server", "Tableau Workbook").
+     * Identifier object containing unique name, domain, and community.
      */
-    private String assetTypeName;
+    private CollibraIdentifier identifier;
 
     /**
-     * Name of the domain where the asset should be created.
+     * Map of attributes for the asset.
+     * Key: Attribute name (e.g., "Description", "URL")
+     * Value: List of attribute values
      */
-    private String domainName;
+    private Map<String, List<CollibraAttributeValue>> attributes;
 
     /**
-     * Name of the community where the domain exists.
+     * Map of relations for the asset.
+     * Key: Relation type (e.g., "relationid:SOURCE", "relationid:TARGET")
+     * Value: List of relation targets
      */
-    private String communityName;
+    private Map<String, List<CollibraRelationTarget>> relations;
 
     /**
-     * Status of the asset (e.g., "Approved", "Candidate").
+     * Creates an identifier name in the format: assetid > assetname
      */
-    private String status;
+    public static String createIdentifierName(String assetId, String assetName) {
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        String safeAssetName = assetName != null ? assetName : "unnamed";
+        return safeAssetId + " > " + safeAssetName;
+    }
 
     /**
-     * List of attributes for the asset.
+     * Creates an identifier name for server-level assets.
      */
-    private List<CollibraAttribute> attributes;
+    public static String createServerIdentifierName(String assetId, String assetName) {
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        String safeAssetName = assetName != null ? assetName : "unnamed";
+        return safeAssetId + " > " + safeAssetName;
+    }
 
     /**
-     * Relations where this asset is the source.
+     * Creates a full name in the format: siteid>assetid>assetname (for backward compatibility)
+     * @deprecated Use createIdentifierName instead
      */
-    private List<CollibraRelation> sourceRelations;
-
-    /**
-     * Relations where this asset is the target.
-     */
-    private List<CollibraRelation> targetRelations;
-
-    /**
-     * Additional identifier for the asset.
-     */
-    private String identifier;
-
-    /**
-     * Creates a full name in the format: siteid>assetid>assetname
-     */
+    @Deprecated
     public static String createFullName(String siteId, String assetId, String assetName) {
         String safeSiteId = siteId != null ? siteId : "default";
         String safeAssetId = assetId != null ? assetId : "unknown";
@@ -85,8 +83,10 @@ public class CollibraAsset {
     }
 
     /**
-     * Creates a full name for server-level assets (no site context).
+     * Creates a full name for server-level assets (no site context). (for backward compatibility)
+     * @deprecated Use createServerIdentifierName instead
      */
+    @Deprecated
     public static String createServerFullName(String assetId, String assetName) {
         String safeAssetId = assetId != null ? assetId : "unknown";
         String safeAssetName = assetName != null ? assetName : "unnamed";
