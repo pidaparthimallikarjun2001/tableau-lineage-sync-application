@@ -1,7 +1,9 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.TableauServer;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.ServerService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,9 +27,11 @@ import java.util.List;
 public class ServerController {
 
     private final ServerService serverService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public ServerController(ServerService serverService) {
+    public ServerController(ServerService serverService, CollibraIngestionService collibraIngestionService) {
         this.serverService = serverService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -100,5 +104,36 @@ public class ServerController {
             @PathVariable Long id) {
         serverService.softDeleteServerAndChildren(id);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+        summary = "Ingest servers to Collibra",
+        description = "Ingest all servers from the database to Collibra. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestServersToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single server to Collibra",
+        description = "Ingest a specific server from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Server not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestServerToCollibra(
+            @Parameter(description = "Database ID of the server")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestServerToCollibra(id).block();
+        return ResponseEntity.ok(result);
     }
 }

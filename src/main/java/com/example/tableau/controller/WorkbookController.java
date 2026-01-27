@@ -1,7 +1,9 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.TableauWorkbook;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.WorkbookService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,9 +27,11 @@ import java.util.List;
 public class WorkbookController {
 
     private final WorkbookService workbookService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public WorkbookController(WorkbookService workbookService) {
+    public WorkbookController(WorkbookService workbookService, CollibraIngestionService collibraIngestionService) {
         this.workbookService = workbookService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -113,5 +117,36 @@ public class WorkbookController {
             @PathVariable Long id) {
         workbookService.softDeleteWorkbookAndChildren(id);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+        summary = "Ingest workbooks to Collibra",
+        description = "Ingest all workbooks from the database to Collibra. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestWorkbooksToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single workbook to Collibra",
+        description = "Ingest a specific workbook from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Workbook not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestWorkbookToCollibra(
+            @Parameter(description = "Database ID of the workbook")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestWorkbookToCollibra(id).block();
+        return ResponseEntity.ok(result);
     }
 }

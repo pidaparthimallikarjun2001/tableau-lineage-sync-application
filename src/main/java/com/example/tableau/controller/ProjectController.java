@@ -1,7 +1,9 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.TableauProject;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.ProjectService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,9 +27,11 @@ import java.util.List;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, CollibraIngestionService collibraIngestionService) {
         this.projectService = projectService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -113,5 +117,37 @@ public class ProjectController {
             @PathVariable Long id) {
         projectService.softDeleteProjectAndChildren(id);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+        summary = "Ingest projects to Collibra",
+        description = "Ingest all projects from the database to Collibra. " +
+            "Handles nested/child projects and their parent-child relations. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestProjectsToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single project to Collibra",
+        description = "Ingest a specific project from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Project not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestProjectToCollibra(
+            @Parameter(description = "Database ID of the project")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestProjectToCollibra(id).block();
+        return ResponseEntity.ok(result);
     }
 }

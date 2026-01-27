@@ -1,8 +1,10 @@
 package com.example.tableau.controller;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.entity.TableauSite;
 import com.example.tableau.exception.ResourceNotFoundException;
+import com.example.tableau.service.CollibraIngestionService;
 import com.example.tableau.service.SiteService;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,9 +28,11 @@ import java.util.List;
 public class SiteController {
 
     private final SiteService siteService;
+    private final CollibraIngestionService collibraIngestionService;
 
-    public SiteController(SiteService siteService) {
+    public SiteController(SiteService siteService, CollibraIngestionService collibraIngestionService) {
         this.siteService = siteService;
+        this.collibraIngestionService = collibraIngestionService;
     }
 
     @Operation(
@@ -121,5 +125,36 @@ public class SiteController {
             @PathVariable Long id) {
         siteService.softDeleteSiteAndChildren(id);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(
+        summary = "Ingest sites to Collibra",
+        description = "Ingest all sites from the database to Collibra. " +
+            "First run: All assets ingested. Subsequent runs: Only NEW, UPDATED, DELETED changes are synchronized."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestToCollibra() {
+        CollibraIngestionResult result = collibraIngestionService.ingestSitesToCollibra().block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest a single site to Collibra",
+        description = "Ingest a specific site from the database to Collibra"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Collibra ingestion result"),
+        @ApiResponse(responseCode = "404", description = "Site not found")
+    })
+    @PostMapping("/{id}/ingest-to-collibra")
+    public ResponseEntity<CollibraIngestionResult> ingestSiteToCollibra(
+            @Parameter(description = "Database ID of the site")
+            @PathVariable Long id) {
+        CollibraIngestionResult result = collibraIngestionService.ingestSiteToCollibra(id).block();
+        return ResponseEntity.ok(result);
     }
 }
