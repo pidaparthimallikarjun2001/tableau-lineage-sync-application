@@ -260,8 +260,8 @@ Access the interactive API documentation at:
    POST /api/projects/ingest
    POST /api/workbooks/ingest
    POST /api/worksheets/ingest
-   POST /api/report-attributes/ingest
    POST /api/datasources/ingest
+   POST /api/report-attributes/ingest
    ```
 
 ## Change Detection
