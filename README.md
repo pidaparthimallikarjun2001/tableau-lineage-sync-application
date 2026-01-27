@@ -63,7 +63,7 @@ A comprehensive Java Spring Boot application that integrates with Tableau's REST
 - **Java 17**
 - **Spring Boot 3.2.0**
 - **Spring Data JPA** with Hibernate
-- **H2 Database** (local development)
+- **H2 Database** (file-based persistence for local development)
 - **MariaDB** (production)
 - **WebFlux WebClient** for async HTTP
 - **Resilience4j** for circuit breaker/retry
@@ -320,9 +320,12 @@ TableauWorkbook (1) ───────────── (Many) TableauWorksh
 
 Access the H2 database console at: `http://localhost:8080/h2-console`
 
-- **JDBC URL**: `jdbc:h2:mem:tableaudb`
+**Connection Settings:**
+- **JDBC URL**: `jdbc:h2:file:./data/tableaudb`
 - **Username**: `sa`
 - **Password**: (empty)
+
+**Note**: The H2 database now uses file-based persistence. Database files are stored in the `./data/` directory, and data will persist across application restarts.
 
 ## Troubleshooting
 
