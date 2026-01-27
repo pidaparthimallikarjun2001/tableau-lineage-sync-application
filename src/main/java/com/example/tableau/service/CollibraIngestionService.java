@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -126,23 +128,29 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapServerToCollibraAsset(TableauServer server) {
-        String fullName = CollibraAsset.createServerFullName(server.getAssetId(), server.getName());
+        String identifierName = CollibraAsset.createServerIdentifierName(server.getAssetId(), server.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", "Tableau Server: " + server.getName());
         addAttribute(attributes, "URL", server.getServerUrl());
         addAttribute(attributes, "Version", server.getVersion());
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Server")
+                    .build())
                 .displayName(server.getName())
-                .assetTypeName("Tableau Server")
-                .domainName(collibraConfig.getServerDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .identifier(server.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getServerDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
                 .build();
     }
 
@@ -201,36 +209,39 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapSiteToCollibraAsset(TableauSite site) {
-        String fullName = CollibraAsset.createFullName(site.getAssetId(), site.getAssetId(), site.getName());
+        String identifierName = CollibraAsset.createIdentifierName(site.getAssetId(), site.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", "Tableau Site: " + site.getName());
         addAttribute(attributes, "Content URL", site.getContentUrl());
         addAttribute(attributes, "Site URL", site.getSiteUrl());
 
         // Add relation to parent server if available
-        List<CollibraRelation> sourceRelations = new ArrayList<>();
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (site.getServer() != null) {
             TableauServer server = site.getServer();
-            String serverFullName = CollibraAsset.createServerFullName(server.getAssetId(), server.getName());
-            sourceRelations.add(CollibraRelation.builder()
-                    .relationTypeName("contains")
-                    .sourceFullName(serverFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String serverName = server.getAssetId() + " > " + server.getName();
+            addRelation(relations, "relationid:SOURCE", serverName,
+                    collibraConfig.getServerDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Site")
+                    .build())
                 .displayName(site.getName())
-                .assetTypeName("Tableau Site")
-                .domainName(collibraConfig.getSiteDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(sourceRelations.isEmpty() ? null : sourceRelations)
-                .identifier(site.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getSiteDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -290,50 +301,51 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapProjectToCollibraAsset(TableauProject project) {
-        String fullName = CollibraAsset.createFullName(project.getSiteId(), project.getAssetId(), project.getName());
+        String identifierName = CollibraAsset.createIdentifierName(project.getAssetId(), project.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", project.getDescription());
         addAttribute(attributes, "Site ID", project.getSiteId());
 
+        // Add relations to parent project and site
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
+        
         // Add relation to parent project if this is a nested project
-        List<CollibraRelation> targetRelations = new ArrayList<>();
         if (project.getParentProjectId() != null && !project.getParentProjectId().isEmpty()) {
             // Find parent project to get its name
             projectRepository.findByAssetIdAndSiteId(project.getParentProjectId(), project.getSiteId())
                     .ifPresent(parentProject -> {
-                        String parentFullName = CollibraAsset.createFullName(
-                                parentProject.getSiteId(), parentProject.getAssetId(), parentProject.getName());
-                        targetRelations.add(CollibraRelation.builder()
-                                .relationTypeName("contains")
-                                .sourceFullName(parentFullName)
-                                .targetFullName(fullName)
-                                .build());
+                        String parentName = parentProject.getAssetId() + " > " + parentProject.getName();
+                        addRelation(relations, "relationid:SOURCE", parentName,
+                                collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
                     });
         }
 
         // Add relation to parent site
         if (project.getSite() != null) {
             TableauSite site = project.getSite();
-            String siteFullName = CollibraAsset.createFullName(site.getAssetId(), site.getAssetId(), site.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("contains")
-                    .sourceFullName(siteFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String siteName = site.getAssetId() + " > " + site.getName();
+            addRelation(relations, "relationid:SOURCE", siteName,
+                    collibraConfig.getSiteDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Project")
+                    .build())
                 .displayName(project.getName())
-                .assetTypeName("Tableau Project")
-                .domainName(collibraConfig.getProjectDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(targetRelations.isEmpty() ? null : targetRelations)
-                .identifier(project.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getProjectDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -392,38 +404,40 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapWorkbookToCollibraAsset(TableauWorkbook workbook) {
-        String fullName = CollibraAsset.createFullName(workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
+        String identifierName = CollibraAsset.createIdentifierName(workbook.getAssetId(), workbook.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", workbook.getDescription());
         addAttribute(attributes, "Owner", workbook.getOwner());
         addAttribute(attributes, "Content URL", workbook.getContentUrl());
         addAttribute(attributes, "Site ID", workbook.getSiteId());
 
         // Add relation to parent project
-        List<CollibraRelation> targetRelations = new ArrayList<>();
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (workbook.getProject() != null) {
             TableauProject project = workbook.getProject();
-            String projectFullName = CollibraAsset.createFullName(
-                    project.getSiteId(), project.getAssetId(), project.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("contains")
-                    .sourceFullName(projectFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String projectName = project.getAssetId() + " > " + project.getName();
+            addRelation(relations, "relationid:SOURCE", projectName,
+                    collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Workbook")
+                    .build())
                 .displayName(workbook.getName())
-                .assetTypeName("Tableau Workbook")
-                .domainName(collibraConfig.getWorkbookDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(targetRelations.isEmpty() ? null : targetRelations)
-                .identifier(workbook.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getWorkbookDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -482,36 +496,38 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapWorksheetToCollibraAsset(TableauWorksheet worksheet) {
-        String fullName = CollibraAsset.createFullName(worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
+        String identifierName = CollibraAsset.createIdentifierName(worksheet.getAssetId(), worksheet.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Owner", worksheet.getOwner());
         addAttribute(attributes, "Site ID", worksheet.getSiteId());
 
         // Add relation to parent workbook
-        List<CollibraRelation> targetRelations = new ArrayList<>();
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (worksheet.getWorkbook() != null) {
             TableauWorkbook workbook = worksheet.getWorkbook();
-            String workbookFullName = CollibraAsset.createFullName(
-                    workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("contains")
-                    .sourceFullName(workbookFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String workbookName = workbook.getAssetId() + " > " + workbook.getName();
+            addRelation(relations, "relationid:SOURCE", workbookName,
+                    collibraConfig.getWorkbookDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Worksheet")
+                    .build())
                 .displayName(worksheet.getName())
-                .assetTypeName("Tableau Worksheet")
-                .domainName(collibraConfig.getWorksheetDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(targetRelations.isEmpty() ? null : targetRelations)
-                .identifier(worksheet.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getWorksheetDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -570,9 +586,9 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapDataSourceToCollibraAsset(TableauDataSource dataSource) {
-        String fullName = CollibraAsset.createFullName(dataSource.getSiteId(), dataSource.getAssetId(), dataSource.getName());
+        String identifierName = CollibraAsset.createIdentifierName(dataSource.getAssetId(), dataSource.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", dataSource.getDescription());
         addAttribute(attributes, "Owner", dataSource.getOwner());
         addAttribute(attributes, "Connection Type", dataSource.getConnectionType());
@@ -586,29 +602,31 @@ public class CollibraIngestionService {
         addAttribute(attributes, "Site ID", dataSource.getSiteId());
 
         // Add relation to parent workbook if embedded
-        List<CollibraRelation> targetRelations = new ArrayList<>();
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (dataSource.getWorkbook() != null) {
             TableauWorkbook workbook = dataSource.getWorkbook();
-            String workbookFullName = CollibraAsset.createFullName(
-                    workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("uses")
-                    .sourceFullName(workbookFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String workbookName = workbook.getAssetId() + " > " + workbook.getName();
+            addRelation(relations, "relationid:SOURCE", workbookName,
+                    collibraConfig.getWorkbookDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Data Source")
+                    .build())
                 .displayName(dataSource.getName())
-                .assetTypeName("Tableau Data Source")
-                .domainName(collibraConfig.getDatasourceDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(targetRelations.isEmpty() ? null : targetRelations)
-                .identifier(dataSource.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getDatasourceDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -667,9 +685,9 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapReportAttributeToCollibraAsset(ReportAttribute attr) {
-        String fullName = CollibraAsset.createFullName(attr.getSiteId(), attr.getAssetId(), attr.getName());
+        String identifierName = CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName());
         
-        List<CollibraAttribute> attributes = new ArrayList<>();
+        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Data Type", attr.getDataType());
         addAttribute(attributes, "Field Role", attr.getFieldRole());
         addAttribute(attributes, "Is Calculated", attr.getIsCalculated() != null ? attr.getIsCalculated().toString() : null);
@@ -681,42 +699,42 @@ public class CollibraIngestionService {
         addAttribute(attributes, "Site ID", attr.getSiteId());
         addAttribute(attributes, "Worksheet ID", attr.getWorksheetId());
 
+        // Add relations to parent worksheet and source data source
+        Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
+        
         // Add relation to parent worksheet
-        List<CollibraRelation> targetRelations = new ArrayList<>();
         if (attr.getWorksheet() != null) {
             TableauWorksheet worksheet = attr.getWorksheet();
-            String worksheetFullName = CollibraAsset.createFullName(
-                    worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("contains")
-                    .sourceFullName(worksheetFullName)
-                    .targetFullName(fullName)
-                    .build());
+            String worksheetName = worksheet.getAssetId() + " > " + worksheet.getName();
+            addRelation(relations, "relationid:SOURCE", worksheetName,
+                    collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
         }
 
         // Add relation to source data source
         if (attr.getDataSource() != null) {
             TableauDataSource dataSource = attr.getDataSource();
-            String dataSourceFullName = CollibraAsset.createFullName(
-                    dataSource.getSiteId(), dataSource.getAssetId(), dataSource.getName());
-            targetRelations.add(CollibraRelation.builder()
-                    .relationTypeName("sources from")
-                    .sourceFullName(fullName)
-                    .targetFullName(dataSourceFullName)
-                    .build());
+            String dataSourceName = dataSource.getAssetId() + " > " + dataSource.getName();
+            addRelation(relations, "relationid:TARGET", dataSourceName,
+                    collibraConfig.getDatasourceDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .externalEntityId(fullName)
-                .fullName(fullName)
+                .resourceType("Asset")
+                .type(CollibraType.builder()
+                    .name("Tableau Report Attribute")
+                    .build())
                 .displayName(attr.getName())
-                .assetTypeName("Tableau Report Attribute")
-                .domainName(collibraConfig.getReportAttributeDomainName())
-                .communityName(collibraConfig.getCommunityName())
-                .status("Approved")
-                .attributes(attributes)
-                .targetRelations(targetRelations.isEmpty() ? null : targetRelations)
-                .identifier(attr.getAssetId())
+                .identifier(CollibraIdentifier.builder()
+                    .name(identifierName)
+                    .domain(CollibraDomain.builder()
+                        .name(collibraConfig.getReportAttributeDomainName())
+                        .community(CollibraCommunity.builder()
+                            .name(collibraConfig.getCommunityName())
+                            .build())
+                        .build())
+                    .build())
+                .attributes(attributes.isEmpty() ? null : attributes)
+                .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
 
@@ -773,6 +791,47 @@ public class CollibraIngestionService {
 
     // ======================== Helper Methods ========================
 
+    /**
+     * Adds an attribute to the attributes map.
+     */
+    private void addAttribute(Map<String, List<CollibraAttributeValue>> attributes, String attributeName, String value) {
+        if (value != null && !value.trim().isEmpty()) {
+            attributes.put(attributeName, List.of(
+                CollibraAttributeValue.builder()
+                    .value(value)
+                    .build()
+            ));
+        }
+    }
+
+    /**
+     * Adds a relation to the relations map.
+     */
+    private void addRelation(Map<String, List<CollibraRelationTarget>> relations, 
+                            String relationKey, 
+                            String targetName,
+                            String domainName, 
+                            String communityName) {
+        if (targetName != null && !targetName.trim().isEmpty()) {
+            CollibraRelationTarget target = CollibraRelationTarget.builder()
+                .name(targetName)
+                .domain(CollibraDomain.builder()
+                    .name(domainName)
+                    .community(CollibraCommunity.builder()
+                        .name(communityName)
+                        .build())
+                    .build())
+                .build();
+            
+            relations.computeIfAbsent(relationKey, k -> new ArrayList<>()).add(target);
+        }
+    }
+
+    /**
+     * Legacy helper method for backward compatibility.
+     * @deprecated Use addAttribute(Map, String, String) instead
+     */
+    @Deprecated
     private void addAttribute(List<CollibraAttribute> attributes, String typeName, String value) {
         if (value != null && !value.trim().isEmpty()) {
             attributes.add(CollibraAttribute.builder()
