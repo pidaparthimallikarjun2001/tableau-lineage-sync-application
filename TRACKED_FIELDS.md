@@ -339,12 +339,12 @@ This design choice keeps the change detection focused on meaningful structural c
 
 ## Need to Track Additional Fields?
 
-If you need to track additional fields for your use case, you can modify the `generateMetadataHash()` calls in each service:
+If you need to track additional fields for your use case, you can modify the `generateMetadataHash()` calls in each service.
 
-**Example:** Add tags to workbook hash:
+**Example:** Add tags to workbook hash in WorkbookService.java:
 
 ```java
-// In WorkbookService.java, line 116-117
+// Modify the hash generation to include tags
 String newHash = generateMetadataHash(assetId, name, description, projectName, 
         owner, contentUrl, tags, currentSiteId);  // Add tags parameter
 ```
