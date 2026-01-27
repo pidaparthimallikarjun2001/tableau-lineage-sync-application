@@ -117,17 +117,34 @@ The application uses **metadata hashing** to detect changes:
 - Workbook ID (which workbook the sheet belongs to)
 - Site ID
 
+**⚠️ IMPORTANT LIMITATION FOR WORKSHEETS:**
+
+When you **rename a worksheet** in Tableau Desktop and republish the workbook, Tableau **changes the worksheet's ID**. This means:
+
+- **Old worksheet ID**: Will be marked as `DELETED` (no longer found in Tableau)
+- **New worksheet ID**: Will be created with status `NEW`
+
+**This is Tableau's behavior, not a bug in the application.** Tableau treats renamed sheets as new sheets with different IDs.
+
 **Example changes that trigger UPDATED:**
+1. **Change workbook that contains the sheet:**
+   - If you move a sheet to a different workbook (changes workbook ID)
+   - The sheet keeps the same ID but workbook ID changes → status = UPDATED
+
+**Changes that result in DELETE + NEW (not UPDATED):**
 1. **Rename the sheet:**
    - In Tableau Desktop: Right-click sheet tab → Rename
    - Publish the workbook to server
-2. **Move sheet to different workbook:**
-   - This would change the workbook ID
+   - **Result**: Old sheet ID marked as DELETED, new sheet ID created as NEW
+   - **Why**: Tableau assigns a new ID to the renamed sheet
 
 **Changes that DO NOT trigger UPDATED:**
 - Sheet content (visualizations, filters, etc.)
 - Sheet type (dashboard vs worksheet)
 - Hidden/visible status
+
+**Why This Happens:**
+Tableau's internal identifier for worksheets is based on the sheet name. When you rename a sheet, Tableau treats it as deleting the old sheet and creating a new one. This is Tableau's design, not a limitation of this application.
 
 ---
 
