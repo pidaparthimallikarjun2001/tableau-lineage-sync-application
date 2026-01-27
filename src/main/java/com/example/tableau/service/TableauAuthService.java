@@ -86,18 +86,7 @@ public class TableauAuthService {
                     .retrieve()
                     .bodyToMono(String.class)
                     .map(this::parseSignInResponse)
-                    .doOnSuccess(response -> {
-                        // Update internal authentication state
-                        token.set(response.getAuthToken());
-                        currentSiteId.set(response.getSiteId());
-                        currentSiteName.set(response.getSiteName());
-                        currentSiteContentUrl.set(response.getSiteContentUrl());
-                        apiConfig.setCurrentAuthToken(response.getAuthToken());
-                        apiConfig.setCurrentSiteId(response.getSiteId());
-                        apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
-                        tokenExpiry = Instant.now().plusSeconds(50 * 60);
-                        log.info("Successfully signed in to site: {}", response.getSiteName());
-                    })
+                    .doOnSuccess(this::updateAuthenticationState)
                     .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
                             .filter(this::isRetryableError)
                             .doBeforeRetry(signal -> log.warn("Retrying sign-in, attempt {}", signal.totalRetries() + 1)))
@@ -130,17 +119,7 @@ public class TableauAuthService {
                                 .retrieve()
                                 .bodyToMono(String.class)
                                 .map(this::parseSignInResponse)
-                                .doOnSuccess(response -> {
-                                    token.set(response.getAuthToken());
-                                    currentSiteId.set(response.getSiteId());
-                                    currentSiteName.set(response.getSiteName());
-                                    currentSiteContentUrl.set(response.getSiteContentUrl());
-                                    apiConfig.setCurrentAuthToken(response.getAuthToken());
-                                    apiConfig.setCurrentSiteId(response.getSiteId());
-                                    apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
-                                    tokenExpiry = Instant.now().plusSeconds(50 * 60);
-                                    log.info("Successfully switched to site: {}", response.getSiteName());
-                                })
+                                .doOnSuccess(this::updateAuthenticationState)
                                 .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
                                         .filter(this::isRetryableError));
                     } catch (Exception e) {
@@ -267,5 +246,21 @@ public class TableauAuthService {
         }
         
         return defaultSite != null ? defaultSite : "";
+    }
+
+    /**
+     * Update internal authentication state from a successful authentication response.
+     * Centralizes state management to avoid duplication.
+     */
+    private void updateAuthenticationState(SiteSwitchResponse response) {
+        token.set(response.getAuthToken());
+        currentSiteId.set(response.getSiteId());
+        currentSiteName.set(response.getSiteName());
+        currentSiteContentUrl.set(response.getSiteContentUrl());
+        apiConfig.setCurrentAuthToken(response.getAuthToken());
+        apiConfig.setCurrentSiteId(response.getSiteId());
+        apiConfig.setCurrentSiteContentUrl(response.getSiteContentUrl());
+        tokenExpiry = Instant.now().plusSeconds(50 * 60);
+        log.info("Successfully authenticated to site: {}", response.getSiteName());
     }
 }

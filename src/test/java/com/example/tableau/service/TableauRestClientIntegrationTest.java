@@ -2,6 +2,7 @@ package com.example.tableau.service;
 
 import com.example.tableau.config.TableauApiConfig;
 import com.example.tableau.dto.SiteSwitchResponse;
+import com.example.tableau.test.TestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -33,12 +34,12 @@ class TableauRestClientIntegrationTest {
 
         // Setup test configuration
         apiConfig = new TableauApiConfig();
-        setPrivateField(apiConfig, "baseUrl", mockWebServer.url("/").toString().replaceAll("/$", ""));
-        setPrivateField(apiConfig, "apiVersion", "3.17");
-        setPrivateField(apiConfig, "authMode", "PAT");
-        setPrivateField(apiConfig, "patName", "testPat");
-        setPrivateField(apiConfig, "patSecret", "testSecret");
-        setPrivateField(apiConfig, "defaultSiteId", "");
+        TestUtils.setPrivateField(apiConfig, "baseUrl", mockWebServer.url("/").toString().replaceAll("/$", ""));
+        TestUtils.setPrivateField(apiConfig, "apiVersion", "3.17");
+        TestUtils.setPrivateField(apiConfig, "authMode", "PAT");
+        TestUtils.setPrivateField(apiConfig, "patName", "testPat");
+        TestUtils.setPrivateField(apiConfig, "patSecret", "testSecret");
+        TestUtils.setPrivateField(apiConfig, "defaultSiteId", "");
 
         // Create services
         WebClient.Builder webClientBuilder = WebClient.builder();
@@ -290,16 +291,5 @@ class TableauRestClientIntegrationTest {
         
         // The token refresh logic is tested implicitly through getAuthToken()
         // which will call signIn() when token expires
-    }
-
-    // Helper method to set private fields using reflection
-    private void setPrivateField(Object target, String fieldName, Object value) {
-        try {
-            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            field.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set field " + fieldName, e);
-        }
     }
 }

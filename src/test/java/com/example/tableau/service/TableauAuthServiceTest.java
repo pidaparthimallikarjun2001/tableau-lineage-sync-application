@@ -2,6 +2,7 @@ package com.example.tableau.service;
 
 import com.example.tableau.config.TableauApiConfig;
 import com.example.tableau.dto.SiteSwitchResponse;
+import com.example.tableau.test.TestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -36,12 +37,12 @@ class TableauAuthServiceTest {
         // Setup test configuration
         apiConfig = new TableauApiConfig();
         // Use reflection to set private fields for testing
-        setPrivateField(apiConfig, "baseUrl", mockWebServer.url("/").toString().replaceAll("/$", ""));
-        setPrivateField(apiConfig, "apiVersion", "3.17");
-        setPrivateField(apiConfig, "authMode", "PAT");
-        setPrivateField(apiConfig, "patName", "testPat");
-        setPrivateField(apiConfig, "patSecret", "testSecret");
-        setPrivateField(apiConfig, "defaultSiteId", "");
+        TestUtils.setPrivateField(apiConfig, "baseUrl", mockWebServer.url("/").toString().replaceAll("/$", ""));
+        TestUtils.setPrivateField(apiConfig, "apiVersion", "3.17");
+        TestUtils.setPrivateField(apiConfig, "authMode", "PAT");
+        TestUtils.setPrivateField(apiConfig, "patName", "testPat");
+        TestUtils.setPrivateField(apiConfig, "patSecret", "testSecret");
+        TestUtils.setPrivateField(apiConfig, "defaultSiteId", "");
 
         // Create WebClient with mock server base URL
         WebClient.Builder webClientBuilder = WebClient.builder();
@@ -189,7 +190,7 @@ class TableauAuthServiceTest {
     @DisplayName("Sign in with null should use configured default site")
     void testSignInWithNullUsesConfiguredDefault() throws Exception {
         // Set a default site in config
-        setPrivateField(apiConfig, "defaultSiteId", "configuredSite");
+        TestUtils.setPrivateField(apiConfig, "defaultSiteId", "configuredSite");
         
         // Prepare mock response
         String mockResponse = """
@@ -224,16 +225,5 @@ class TableauAuthServiceTest {
         Map<String, Object> site = (Map<String, Object>) credentials.get("site");
         
         assertEquals("configuredSite", site.get("contentUrl"), "Should use configured default site");
-    }
-
-    // Helper method to set private fields using reflection
-    private void setPrivateField(Object target, String fieldName, Object value) {
-        try {
-            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            field.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to set field " + fieldName, e);
-        }
     }
 }
