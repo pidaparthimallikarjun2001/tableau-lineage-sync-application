@@ -178,6 +178,11 @@ None (Server is the root of the hierarchy)
       {
         "value": "Sales analytics dashboards and reports"
       }
+    ],
+    "Owner in Source": [
+      {
+        "value": "john.doe@company.com"
+      }
     ]
   },
   "relations": {
@@ -218,6 +223,11 @@ None (Server is the root of the hierarchy)
       {
         "value": "Q1 2024 sales reports"
       }
+    ],
+    "Owner in Source": [
+      {
+        "value": "jane.smith@company.com"
+      }
     ]
   },
   "relations": {
@@ -247,6 +257,7 @@ None (Server is the root of the hierarchy)
 
 ### Attributes to Configure in Collibra
 - **Description** (String) - Project description
+- **Owner in Source** (String) - Owner username from Tableau
 
 ### Relations to Configure in Collibra
 - **relationid:SOURCE** - Points to parent Site and optionally parent Project (for nested projects)
