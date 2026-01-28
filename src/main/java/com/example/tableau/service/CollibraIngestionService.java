@@ -533,7 +533,6 @@ public class CollibraIngestionService {
             worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
         
         // No attributes for Tableau Worksheet as per requirements
-        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
 
         // Add relation to parent workbook
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
@@ -560,7 +559,7 @@ public class CollibraIngestionService {
                             .build())
                         .build())
                     .build())
-                .attributes(attributes.isEmpty() ? null : attributes)
+                .attributes(null)
                 .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
@@ -639,7 +638,8 @@ public class CollibraIngestionService {
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (dataSource.getWorkbook() != null) {
             TableauWorkbook workbook = dataSource.getWorkbook();
-            String workbookName = workbook.getAssetId() + " > " + workbook.getName();
+            String workbookName = CollibraAsset.createWorkbookIdentifierName(
+                workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
             addRelation(relations, "relationid:SOURCE", workbookName,
                     collibraConfig.getWorkbookDomainName(), collibraConfig.getCommunityName());
         }
@@ -739,7 +739,8 @@ public class CollibraIngestionService {
         // Add relation to parent worksheet
         if (attr.getWorksheet() != null) {
             TableauWorksheet worksheet = attr.getWorksheet();
-            String worksheetName = worksheet.getAssetId() + " > " + worksheet.getName();
+            String worksheetName = CollibraAsset.createWorksheetIdentifierName(
+                worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
             addRelation(relations, "relationid:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
         }
@@ -747,7 +748,8 @@ public class CollibraIngestionService {
         // Add relation to source data source
         if (attr.getDataSource() != null) {
             TableauDataSource dataSource = attr.getDataSource();
-            String dataSourceName = dataSource.getAssetId() + " > " + dataSource.getName();
+            String dataSourceName = CollibraAsset.createIdentifierName(
+                dataSource.getAssetId(), dataSource.getName());
             addRelation(relations, "relationid:TARGET", dataSourceName,
                     collibraConfig.getDatasourceDomainName(), collibraConfig.getCommunityName());
         }
