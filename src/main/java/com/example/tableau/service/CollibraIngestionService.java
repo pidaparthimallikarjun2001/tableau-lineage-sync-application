@@ -104,12 +104,23 @@ public class CollibraIngestionService {
         log.info("Ingesting {} servers to Collibra ({} to create/update, {} to delete, {} skipped)",
                 servers.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(server -> CollibraAsset.createServerIdentifierName(server.getAssetId(), server.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "Server")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getServerDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -185,12 +196,23 @@ public class CollibraIngestionService {
         log.info("Ingesting {} sites to Collibra ({} to create/update, {} to delete, {} skipped)",
                 sites.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(site -> CollibraAsset.createSiteIdentifierName(site.getAssetId(), site.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "Site")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getSiteDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -283,12 +305,24 @@ public class CollibraIngestionService {
         log.info("Ingesting {} projects to Collibra ({} to create/update, {} to delete, {} skipped)",
                 projects.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(project -> CollibraAsset.createProjectIdentifierName(
+                    project.getSiteId(), project.getAssetId(), project.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "Project")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getProjectDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -399,12 +433,24 @@ public class CollibraIngestionService {
         log.info("Ingesting {} workbooks to Collibra ({} to create/update, {} to delete, {} skipped)",
                 workbooks.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(workbook -> CollibraAsset.createWorkbookIdentifierName(
+                    workbook.getSiteId(), workbook.getAssetId(), workbook.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "Workbook")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getWorkbookDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -503,12 +549,24 @@ public class CollibraIngestionService {
         log.info("Ingesting {} worksheets to Collibra ({} to create/update, {} to delete, {} skipped)",
                 worksheets.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
+                    worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "Worksheet")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getWorksheetDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -593,12 +651,24 @@ public class CollibraIngestionService {
         log.info("Ingesting {} data sources to Collibra ({} to create/update, {} to delete, {} skipped)",
                 dataSources.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(dataSource -> CollibraAsset.createIdentifierName(
+                    dataSource.getAssetId(), dataSource.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "DataSource")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getDatasourceDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -693,12 +763,23 @@ public class CollibraIngestionService {
         log.info("Ingesting {} report attributes to Collibra ({} to create/update, {} to delete, {} skipped)",
                 reportAttributes.size(), assetsToIngest.size(), toDelete.size(), skipped);
 
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(attr -> CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName()))
+                .toList();
+
         final int finalSkipped = skipped;
         return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
-                .map(result -> {
-                    result.setAssetsDeleted(toDelete.size());
-                    result.setAssetsSkipped(finalSkipped);
-                    return result;
+                .flatMap(result -> {
+                    // After importing, delete the marked assets
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getReportAttributeDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
                 });
     }
 
@@ -826,6 +907,46 @@ public class CollibraIngestionService {
     }
 
     // ======================== Helper Methods ========================
+
+    /**
+     * Delete assets from Collibra by their identifier names, domain, and community.
+     * Returns a Mono with the count of successfully deleted assets.
+     */
+    private Mono<Integer> deleteAssetsFromCollibra(List<String> identifierNames, String domainName, String communityName) {
+        if (identifierNames.isEmpty()) {
+            return Mono.just(0);
+        }
+
+        log.debug("Attempting to delete {} assets from Collibra (domain: {}, community: {})", 
+                identifierNames.size(), domainName, communityName);
+
+        // Create a list of Monos for each deletion operation
+        List<Mono<Boolean>> deletionMonos = identifierNames.stream()
+                .map(identifierName -> 
+                    collibraClient.findAssetByIdentifier(identifierName, domainName, communityName)
+                        .flatMap(assetId -> {
+                            log.debug("Deleting asset with identifier '{}' (UUID: {})", identifierName, assetId);
+                            return collibraClient.deleteAsset(assetId);
+                        })
+                        .defaultIfEmpty(false)
+                )
+                .toList();
+
+        // Execute all deletions and count successes
+        return Mono.zip(deletionMonos, results -> {
+            int successCount = 0;
+            for (Object result : results) {
+                if (result instanceof Boolean && (Boolean) result) {
+                    successCount++;
+                }
+            }
+            log.info("Successfully deleted {} out of {} assets from Collibra", successCount, identifierNames.size());
+            return successCount;
+        }).onErrorResume(e -> {
+            log.error("Error during asset deletion: {}", e.getMessage(), e);
+            return Mono.just(0);
+        });
+    }
 
     /**
      * Converts LocalDateTime to Unix timestamp in milliseconds.

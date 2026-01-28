@@ -651,4 +651,107 @@ class CollibraIngestionServiceTest {
         assertTrue(result.isSuccess());
         verify(collibraClient).importAssets(anyList(), eq("Workbook"));
     }
+
+    @Test
+    void testIngestProjectsWithDeletion() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauServer server = createTestServer("server-1", "Test Server", StatusFlag.ACTIVE);
+        TableauSite site = createTestSite("site-1", "Test Site", "testsite", server, StatusFlag.ACTIVE);
+        
+        // Create a project to delete
+        TableauProject projectToDelete = createTestProjectWithSite("proj-del", "Deleted Project", "site-1", null, site, StatusFlag.DELETED);
+        // Create a project to update
+        TableauProject projectToUpdate = createTestProjectWithSite("proj-upd", "Updated Project", "site-1", null, site, StatusFlag.UPDATED);
+
+        when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(projectToDelete, projectToUpdate));
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 1, 1, 0, 0, 0)));
+
+        // Mock the deletion flow
+        String identifierToDelete = "site-1 > proj-del";
+        when(collibraClient.findAssetByIdentifier(eq(identifierToDelete), anyString(), anyString()))
+                .thenReturn(Mono.just("uuid-123"));
+        when(collibraClient.deleteAsset("uuid-123"))
+                .thenReturn(Mono.just(true));
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getAssetsDeleted(), "Should have deleted 1 asset");
+        
+        // Verify import was called with only the updated project
+        verify(collibraClient).importAssets(argThat(assets -> assets.size() == 1), eq("Project"));
+        // Verify deletion was attempted
+        verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Projects"), eq("Tableau Technology"));
+        verify(collibraClient).deleteAsset("uuid-123");
+    }
+
+    @Test
+    void testIngestServersWithDeletion() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getServerDomainName()).thenReturn("Tableau Server");
+
+        // Create a server to delete
+        TableauServer serverToDelete = createTestServer("server-del", "Deleted Server", StatusFlag.DELETED);
+        // Create a server to update
+        TableauServer serverToUpdate = createTestServer("server-upd", "Updated Server", StatusFlag.UPDATED);
+
+        when(serverRepository.findAll()).thenReturn(List.of(serverToDelete, serverToUpdate));
+        when(collibraClient.importAssets(anyList(), eq("Server")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Server", 1, 1, 0, 0, 0)));
+
+        // Mock the deletion flow
+        String identifierToDelete = "server-del";
+        when(collibraClient.findAssetByIdentifier(eq(identifierToDelete), anyString(), anyString()))
+                .thenReturn(Mono.just("uuid-456"));
+        when(collibraClient.deleteAsset("uuid-456"))
+                .thenReturn(Mono.just(true));
+
+        CollibraIngestionResult result = ingestionService.ingestServersToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getAssetsDeleted(), "Should have deleted 1 asset");
+        
+        // Verify deletion was attempted
+        verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Server"), eq("Tableau Technology"));
+        verify(collibraClient).deleteAsset("uuid-456");
+    }
+
+    @Test
+    void testIngestProjectsWithDeletion_AssetNotFoundInCollibra() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauServer server = createTestServer("server-1", "Test Server", StatusFlag.ACTIVE);
+        TableauSite site = createTestSite("site-1", "Test Site", "testsite", server, StatusFlag.ACTIVE);
+        
+        // Create a project to delete that doesn't exist in Collibra
+        TableauProject projectToDelete = createTestProjectWithSite("proj-del", "Deleted Project", "site-1", null, site, StatusFlag.DELETED);
+
+        when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(projectToDelete));
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 0, 0, 0, 0, 0)));
+
+        // Mock the deletion flow - asset not found
+        String identifierToDelete = "site-1 > proj-del";
+        when(collibraClient.findAssetByIdentifier(eq(identifierToDelete), anyString(), anyString()))
+                .thenReturn(Mono.empty());
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(0, result.getAssetsDeleted(), "Should have deleted 0 assets (not found in Collibra)");
+        
+        // Verify search was attempted but delete was not called
+        verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Projects"), eq("Tableau Technology"));
+        verify(collibraClient, never()).deleteAsset(anyString());
+    }
 }
