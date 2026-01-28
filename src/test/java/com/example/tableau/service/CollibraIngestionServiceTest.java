@@ -186,12 +186,12 @@ class CollibraIngestionServiceTest {
     void testIngestProjectsWithParentRelation() {
         when(collibraClient.isConfigured()).thenReturn(true);
         when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
-        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Project");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
 
         TableauProject parentProject = createTestProject("parent-proj", "Parent Project", "site-1", null, StatusFlag.ACTIVE);
         TableauProject childProject = createTestProject("child-proj", "Child Project", "site-1", "parent-proj", StatusFlag.NEW);
 
-        when(projectRepository.findAll()).thenReturn(List.of(parentProject, childProject));
+        when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(parentProject, childProject));
         when(projectRepository.findByAssetIdAndSiteId("parent-proj", "site-1")).thenReturn(Optional.of(parentProject));
 
         when(collibraClient.importAssets(anyList(), eq("Project")))
