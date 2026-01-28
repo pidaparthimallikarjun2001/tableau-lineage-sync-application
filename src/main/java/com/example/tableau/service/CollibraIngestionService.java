@@ -290,7 +290,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        return projectRepository.findById(projectId)
+        return projectRepository.findByIdWithSiteAndServer(projectId)
                 .map(project -> {
                     CollibraAsset asset = mapProjectToCollibraAsset(project);
                     return collibraClient.importAssets(List.of(asset), "Project");

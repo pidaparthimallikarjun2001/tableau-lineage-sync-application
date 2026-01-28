@@ -43,6 +43,9 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
     
     @Query("SELECT DISTINCT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server")
     List<TableauProject> findAllWithSiteAndServer();
+    
+    @Query("SELECT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server WHERE p.id = :id")
+    Optional<TableauProject> findByIdWithSiteAndServer(@Param("id") Long id);
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
 }

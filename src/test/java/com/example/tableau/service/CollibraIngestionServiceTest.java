@@ -212,6 +212,26 @@ class CollibraIngestionServiceTest {
         assertFalse(ingestionService.isConfigured());
     }
 
+    @Test
+    void testIngestProjectWithUrlGeneration() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauServer server = createTestServer("server-1", "Test Server", StatusFlag.ACTIVE);
+        TableauSite site = createTestSite("site-1", "Test Site", "testsite", server, StatusFlag.ACTIVE);
+        TableauProject project = createTestProjectWithSite("proj-1", "Test Project", "site-1", null, site, StatusFlag.NEW);
+
+        when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(project));
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
     private TableauServer createTestServer(String assetId, String name, StatusFlag statusFlag) {
         return TableauServer.builder()
                 .id(1L)
@@ -219,6 +239,21 @@ class CollibraIngestionServiceTest {
                 .name(name)
                 .serverUrl("https://tableau.example.com")
                 .version("2023.3")
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    private TableauSite createTestSite(String assetId, String name, String contentUrl, 
+                                       TableauServer server, StatusFlag statusFlag) {
+        return TableauSite.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .contentUrl(contentUrl)
+                .siteUrl(server.getServerUrl() + "/#/site/" + contentUrl + "/")
+                .server(server)
                 .statusFlag(statusFlag)
                 .createdTimestamp(LocalDateTime.now())
                 .lastUpdatedTimestamp(LocalDateTime.now())
@@ -233,6 +268,21 @@ class CollibraIngestionServiceTest {
                 .name(name)
                 .siteId(siteId)
                 .parentProjectId(parentProjectId)
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    private TableauProject createTestProjectWithSite(String assetId, String name, String siteId,
+                                                      String parentProjectId, TableauSite site, StatusFlag statusFlag) {
+        return TableauProject.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .siteId(siteId)
+                .parentProjectId(parentProjectId)
+                .site(site)
                 .statusFlag(statusFlag)
                 .createdTimestamp(LocalDateTime.now())
                 .lastUpdatedTimestamp(LocalDateTime.now())
