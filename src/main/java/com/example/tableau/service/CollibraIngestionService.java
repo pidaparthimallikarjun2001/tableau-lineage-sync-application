@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,10 +27,6 @@ import java.util.stream.Collectors;
 public class CollibraIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(CollibraIngestionService.class);
-    
-    // Date format for Collibra import: M/d/yy (e.g., 8/21/19 for August 21, 2019)
-    // Note: Single-digit months and days have no leading zeros
-    private static final DateTimeFormatter COLLIBRA_DATE_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy");
 
     private final CollibraRestClient collibraClient;
     private final CollibraApiConfig collibraConfig;
@@ -439,13 +435,13 @@ public class CollibraIngestionService {
         // Add Document creation date (from tableauCreatedAt)
         if (workbook.getTableauCreatedAt() != null) {
             addAttribute(attributes, "Document creation date", 
-                workbook.getTableauCreatedAt().format(COLLIBRA_DATE_FORMATTER));
+                convertToUnixTimestamp(workbook.getTableauCreatedAt()));
         }
         
         // Add Document modification date (from tableauUpdatedAt)
         if (workbook.getTableauUpdatedAt() != null) {
             addAttribute(attributes, "Document modification date", 
-                workbook.getTableauUpdatedAt().format(COLLIBRA_DATE_FORMATTER));
+                convertToUnixTimestamp(workbook.getTableauUpdatedAt()));
         }
 
         // Add relation to parent project
@@ -830,6 +826,27 @@ public class CollibraIngestionService {
     }
 
     // ======================== Helper Methods ========================
+
+    /**
+     * Converts LocalDateTime to Unix timestamp in milliseconds.
+     * Strips the time part by converting to LocalDate, then converts to Instant at UTC midnight.
+     * 
+     * @param dateTime the LocalDateTime to convert
+     * @return Unix timestamp in milliseconds as a String
+     */
+    private String convertToUnixTimestamp(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return null;
+        }
+        // Convert to LocalDate (strips time part)
+        // Convert back to Instant at UTC midnight
+        // Get Unix timestamp in milliseconds
+        long timestamp = dateTime.toLocalDate()
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant()
+                .toEpochMilli();
+        return String.valueOf(timestamp);
+    }
 
     /**
      * Adds an attribute to the attributes map.

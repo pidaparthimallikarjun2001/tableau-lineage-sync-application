@@ -457,19 +457,22 @@ class CollibraIngestionServiceTest {
                     List<CollibraAsset> assets = invocation.getArgument(0);
                     CollibraAsset asset = assets.get(0);
                     
-                    // Verify date format is M/d/yy (e.g., 1/15/24, 2/20/24)
-                    // Note: Single-digit months and days have no leading zeros
+                    // Verify date format is Unix timestamp in milliseconds
+                    // LocalDateTime(2024, 1, 15, 10, 30) -> LocalDate(2024-01-15) at UTC midnight
+                    // LocalDateTime(2024, 2, 20, 14, 45) -> LocalDate(2024-02-20) at UTC midnight
                     List<CollibraAttributeValue> creationDates = asset.getAttributes().get("Document creation date");
                     assertNotNull(creationDates, "Document creation date should be present");
                     assertEquals(1, creationDates.size());
-                    assertEquals("1/15/24", creationDates.get(0).getValue(), 
-                        "Creation date should be in M/d/yy format (1/15/24 for January 15, 2024)");
+                    // 2024-01-15T00:00:00Z = 1705276800000
+                    assertEquals("1705276800000", creationDates.get(0).getValue(), 
+                        "Creation date should be Unix timestamp in milliseconds for 2024-01-15 at UTC midnight");
                     
                     List<CollibraAttributeValue> modificationDates = asset.getAttributes().get("Document modification date");
                     assertNotNull(modificationDates, "Document modification date should be present");
                     assertEquals(1, modificationDates.size());
-                    assertEquals("2/20/24", modificationDates.get(0).getValue(), 
-                        "Modification date should be in M/d/yy format (2/20/24 for February 20, 2024)");
+                    // 2024-02-20T00:00:00Z = 1708387200000
+                    assertEquals("1708387200000", modificationDates.get(0).getValue(), 
+                        "Modification date should be Unix timestamp in milliseconds for 2024-02-20 at UTC midnight");
                     
                     return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
                 });
