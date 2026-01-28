@@ -40,6 +40,9 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
 
     @Query("SELECT p FROM TableauProject p WHERE p.siteId = :siteId AND p.statusFlag != 'DELETED'")
     List<TableauProject> findAllActiveBySiteId(@Param("siteId") String siteId);
+    
+    @Query("SELECT DISTINCT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server")
+    List<TableauProject> findAllWithSiteAndServer();
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
 }

@@ -254,7 +254,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<TableauProject> projects = projectRepository.findAll();
+        List<TableauProject> projects = projectRepository.findAllWithSiteAndServer();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<TableauProject> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -303,7 +303,15 @@ public class CollibraIngestionService {
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", project.getDescription());
-        addAttribute(attributes, "Site ID", project.getSiteId());
+        
+        // Build project URL from server URL and site content URL
+        if (project.getSite() != null) {
+            TableauSite site = project.getSite();
+            if (site.getServer() != null && site.getServer().getServerUrl() != null && site.getContentUrl() != null) {
+                String projectUrl = site.getServer().getServerUrl() + "/#/site/" + site.getContentUrl() + "/";
+                addAttribute(attributes, "URL", projectUrl);
+            }
+        }
 
         // Add relations to parent project and site
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
@@ -314,7 +322,7 @@ public class CollibraIngestionService {
             projectRepository.findByAssetIdAndSiteId(project.getParentProjectId(), project.getSiteId())
                     .ifPresent(parentProject -> {
                         String parentName = parentProject.getAssetId() + " > " + parentProject.getName();
-                        addRelation(relations, "relationid:SOURCE", parentName,
+                        addRelation(relations, "00000000-0000-0000-0000-120000000001:SOURCE", parentName,
                                 collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
                     });
         }
@@ -323,12 +331,12 @@ public class CollibraIngestionService {
         if (project.getSite() != null) {
             TableauSite site = project.getSite();
             String siteName = site.getAssetId() + " > " + site.getName();
-            addRelation(relations, "relationid:SOURCE", siteName,
+            addRelation(relations, "0195fc55-b49f-7711-9ce6-d87a1f60b36a:SOURCE", siteName,
                     collibraConfig.getSiteDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .resourceType("Asset")
+                .resourceType("Tableau Project")
                 .type(CollibraType.builder()
                     .name("Tableau Project")
                     .build())
