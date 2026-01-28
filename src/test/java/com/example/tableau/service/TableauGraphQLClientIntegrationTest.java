@@ -290,4 +290,95 @@ class TableauGraphQLClientIntegrationTest {
         assertEquals(expectedToken, graphQLRequest.getHeader("X-Tableau-Auth"),
                 "GraphQL request should use the auth token from sign-in");
     }
+
+    @Test
+    @DisplayName("Should fetch sheet field instances with role field for calculated fields only")
+    void testFetchSheetFieldInstancesWithRole() throws Exception {
+        // Mock sign-in
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                    {
+                        "credentials": {
+                            "token": "field-token",
+                            "site": {
+                                "id": "site-id",
+                                "name": "Test Site",
+                                "contentUrl": "testsite"
+                            }
+                        }
+                    }
+                    """)
+                .addHeader("Content-Type", "application/json"));
+
+        authService.signIn("testsite").block();
+
+        // Mock sheet field instances response with both calculated and non-calculated fields
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                    {
+                        "data": {
+                            "sheetsConnection": {
+                                "nodes": [
+                                    {
+                                        "id": "sheet1",
+                                        "name": "Test Sheet",
+                                        "luid": "sheet-luid-1",
+                                        "workbook": {
+                                            "id": "wb1",
+                                            "name": "Test Workbook",
+                                            "luid": "wb-luid-1"
+                                        },
+                                        "sheetFieldInstances": [
+                                            {
+                                                "id": "field1",
+                                                "name": "Regular Field",
+                                                "datasource": {
+                                                    "id": "ds1",
+                                                    "name": "Data Source 1"
+                                                }
+                                            },
+                                            {
+                                                "id": "field2",
+                                                "name": "Calculated Field",
+                                                "datasource": {
+                                                    "id": "ds1",
+                                                    "name": "Data Source 1"
+                                                },
+                                                "role": "MEASURE",
+                                                "dataType": "INTEGER"
+                                            }
+                                        ],
+                                        "upstreamFields": [],
+                                        "upstreamDatasources": []
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "hasNextPage": false,
+                                    "endCursor": null
+                                }
+                            }
+                        }
+                    }
+                    """)
+                .addHeader("Content-Type", "application/json"));
+
+        // Fetch sheet field instances
+        List<JsonNode> fieldInstances = graphQLClient.fetchSheetFieldInstances(100).block();
+        
+        // Verify results
+        assertNotNull(fieldInstances);
+        assertEquals(2, fieldInstances.size());
+        
+        // First field should be a regular field without role
+        JsonNode regularField = fieldInstances.get(0);
+        assertEquals("Regular Field", regularField.path("name").asText());
+        assertTrue(regularField.path("role").isNull() || regularField.path("role").isMissingNode(),
+                "Regular field should have null or missing role");
+        
+        // Second field should be a calculated field with role
+        JsonNode calculatedField = fieldInstances.get(1);
+        assertEquals("Calculated Field", calculatedField.path("name").asText());
+        assertEquals("MEASURE", calculatedField.path("role").asText(),
+                "Calculated field should have role MEASURE");
+    }
 }
