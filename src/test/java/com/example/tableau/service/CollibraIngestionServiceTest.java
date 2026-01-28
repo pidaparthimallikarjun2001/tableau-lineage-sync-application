@@ -457,18 +457,19 @@ class CollibraIngestionServiceTest {
                     List<CollibraAsset> assets = invocation.getArgument(0);
                     CollibraAsset asset = assets.get(0);
                     
-                    // Verify date format is mm/dd/yy (e.g., 1/15/24, 2/20/24)
+                    // Verify date format is M/d/yy (e.g., 1/15/24, 2/20/24)
+                    // Note: Single-digit months and days have no leading zeros
                     List<CollibraAttributeValue> creationDates = asset.getAttributes().get("Document creation date");
                     assertNotNull(creationDates, "Document creation date should be present");
                     assertEquals(1, creationDates.size());
                     assertEquals("1/15/24", creationDates.get(0).getValue(), 
-                        "Creation date should be in mm/dd/yy format (1/15/24 for January 15, 2024)");
+                        "Creation date should be in M/d/yy format (1/15/24 for January 15, 2024)");
                     
                     List<CollibraAttributeValue> modificationDates = asset.getAttributes().get("Document modification date");
                     assertNotNull(modificationDates, "Document modification date should be present");
                     assertEquals(1, modificationDates.size());
                     assertEquals("2/20/24", modificationDates.get(0).getValue(), 
-                        "Modification date should be in mm/dd/yy format (2/20/24 for February 20, 2024)");
+                        "Modification date should be in M/d/yy format (2/20/24 for February 20, 2024)");
                     
                     return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
                 });

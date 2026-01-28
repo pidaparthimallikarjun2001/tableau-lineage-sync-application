@@ -28,7 +28,8 @@ public class CollibraIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(CollibraIngestionService.class);
     
-    // Date format for Collibra import: mm/dd/yy (e.g., 8/21/19)
+    // Date format for Collibra import: M/d/yy (e.g., 8/21/19 for August 21, 2019)
+    // Note: Single-digit months and days have no leading zeros
     private static final DateTimeFormatter COLLIBRA_DATE_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy");
 
     private final CollibraRestClient collibraClient;
