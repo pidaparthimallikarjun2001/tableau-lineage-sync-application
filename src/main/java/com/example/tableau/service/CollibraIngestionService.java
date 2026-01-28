@@ -254,7 +254,15 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<TableauProject> projects = projectRepository.findAll();
+        List<TableauProject> projects = projectRepository.findAllWithSiteAndServer();
+        
+        // Create a map of projects by (assetId, siteId) to avoid N+1 queries when looking up parent projects
+        Map<String, TableauProject> projectMap = new HashMap<>();
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            projectMap.put(key, project);
+        }
+        
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<TableauProject> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -264,7 +272,7 @@ public class CollibraIngestionService {
                 toDelete.add(project);
             } else if (project.getStatusFlag() == StatusFlag.NEW || 
                        project.getStatusFlag() == StatusFlag.UPDATED) {
-                assetsToIngest.add(mapProjectToCollibraAsset(project));
+                assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
             } else {
                 skipped++;
             }
@@ -290,45 +298,63 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        return projectRepository.findById(projectId)
+        return projectRepository.findByIdWithSiteAndServer(projectId)
                 .map(project -> {
-                    CollibraAsset asset = mapProjectToCollibraAsset(project);
+                    // For single project ingestion, we still need to look up parent if needed
+                    CollibraAsset asset = mapProjectToCollibraAsset(project, null);
                     return collibraClient.importAssets(List.of(asset), "Project");
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Project", "Project not found: " + projectId)));
     }
 
-    private CollibraAsset mapProjectToCollibraAsset(TableauProject project) {
+    private CollibraAsset mapProjectToCollibraAsset(TableauProject project, Map<String, TableauProject> projectMap) {
         String identifierName = CollibraAsset.createIdentifierName(project.getAssetId(), project.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", project.getDescription());
-        addAttribute(attributes, "Site ID", project.getSiteId());
+        
+        // Build project URL from server URL and site content URL
+        if (project.getSite() != null) {
+            TableauSite site = project.getSite();
+            if (site.getServer() != null && site.getServer().getServerUrl() != null && site.getContentUrl() != null) {
+                String projectUrl = site.getServer().getServerUrl() + "/#/site/" + site.getContentUrl() + "/";
+                addAttribute(attributes, "URL", projectUrl);
+            }
+        }
 
         // Add relations to parent project and site
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         
         // Add relation to parent project if this is a nested project
         if (project.getParentProjectId() != null && !project.getParentProjectId().isEmpty()) {
-            // Find parent project to get its name
-            projectRepository.findByAssetIdAndSiteId(project.getParentProjectId(), project.getSiteId())
-                    .ifPresent(parentProject -> {
-                        String parentName = parentProject.getAssetId() + " > " + parentProject.getName();
-                        addRelation(relations, "relationid:SOURCE", parentName,
-                                collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
-                    });
+            TableauProject parentProject = null;
+            
+            // Use the project map if provided (batch ingestion), otherwise query the database (single ingestion)
+            if (projectMap != null) {
+                String parentKey = project.getParentProjectId() + ":" + project.getSiteId();
+                parentProject = projectMap.get(parentKey);
+            } else {
+                parentProject = projectRepository.findByAssetIdAndSiteId(project.getParentProjectId(), project.getSiteId())
+                        .orElse(null);
+            }
+            
+            if (parentProject != null) {
+                String parentName = parentProject.getAssetId() + " > " + parentProject.getName();
+                addRelation(relations, "00000000-0000-0000-0000-120000000001:SOURCE", parentName,
+                        collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
+            }
         }
 
         // Add relation to parent site
         if (project.getSite() != null) {
             TableauSite site = project.getSite();
             String siteName = site.getAssetId() + " > " + site.getName();
-            addRelation(relations, "relationid:SOURCE", siteName,
+            addRelation(relations, "0195fc55-b49f-7711-9ce6-d87a1f60b36a:SOURCE", siteName,
                     collibraConfig.getSiteDomainName(), collibraConfig.getCommunityName());
         }
 
         return CollibraAsset.builder()
-                .resourceType("Asset")
+                .resourceType("Tableau Project")
                 .type(CollibraType.builder()
                     .name("Tableau Project")
                     .build())
