@@ -111,6 +111,9 @@ public class ProjectService extends BaseAssetService {
                             if (!ownerNode.isMissingNode() && !ownerNode.isNull()) {
                                 owner = ownerNode.path("username").asText(null);
                             }
+                            if (owner == null || owner.isEmpty()) {
+                                log.debug("Project {} (ID: {}) has null or empty owner", name, assetId);
+                            }
                             
                             processedAssetIds.add(assetId);
                             
