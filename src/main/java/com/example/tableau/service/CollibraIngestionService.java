@@ -27,6 +27,9 @@ import java.util.stream.Collectors;
 public class CollibraIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(CollibraIngestionService.class);
+    
+    // Date format for Collibra import: mm/dd/yy (e.g., 8/21/19)
+    private static final DateTimeFormatter COLLIBRA_DATE_FORMATTER = DateTimeFormatter.ofPattern("M/d/yy");
 
     private final CollibraRestClient collibraClient;
     private final CollibraApiConfig collibraConfig;
@@ -435,13 +438,13 @@ public class CollibraIngestionService {
         // Add Document creation date (from tableauCreatedAt)
         if (workbook.getTableauCreatedAt() != null) {
             addAttribute(attributes, "Document creation date", 
-                workbook.getTableauCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+                workbook.getTableauCreatedAt().format(COLLIBRA_DATE_FORMATTER));
         }
         
         // Add Document modification date (from tableauUpdatedAt)
         if (workbook.getTableauUpdatedAt() != null) {
             addAttribute(attributes, "Document modification date", 
-                workbook.getTableauUpdatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+                workbook.getTableauUpdatedAt().format(COLLIBRA_DATE_FORMATTER));
         }
 
         // Add relation to parent project

@@ -2,6 +2,7 @@ package com.example.tableau.service;
 
 import com.example.tableau.config.CollibraApiConfig;
 import com.example.tableau.dto.collibra.CollibraAsset;
+import com.example.tableau.dto.collibra.CollibraAttributeValue;
 import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.example.tableau.dto.collibra.CollibraRelationTarget;
 import com.example.tableau.entity.*;
@@ -438,6 +439,45 @@ class CollibraIngestionServiceTest {
         assertTrue(result.isSuccess());
         verify(collibraClient).importAssets(anyList(), eq("Workbook"));
         verify(workbookRepository).findAllWithProject();
+    }
+
+    @Test
+    void testWorkbookDateFormatting() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        TableauWorkbook workbook = createTestWorkbook("workbook-1", "Test Workbook", "site-1", project, StatusFlag.NEW);
+
+        when(workbookRepository.findAllWithProject()).thenReturn(List.of(workbook));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    
+                    // Verify date format is mm/dd/yy (e.g., 1/15/24, 2/20/24)
+                    List<CollibraAttributeValue> creationDates = asset.getAttributes().get("Document creation date");
+                    assertNotNull(creationDates, "Document creation date should be present");
+                    assertEquals(1, creationDates.size());
+                    assertEquals("1/15/24", creationDates.get(0).getValue(), 
+                        "Creation date should be in mm/dd/yy format (1/15/24 for January 15, 2024)");
+                    
+                    List<CollibraAttributeValue> modificationDates = asset.getAttributes().get("Document modification date");
+                    assertNotNull(modificationDates, "Document modification date should be present");
+                    assertEquals(1, modificationDates.size());
+                    assertEquals("2/20/24", modificationDates.get(0).getValue(), 
+                        "Modification date should be in mm/dd/yy format (2/20/24 for February 20, 2024)");
+                    
+                    return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Workbook"));
     }
 
     @Test
