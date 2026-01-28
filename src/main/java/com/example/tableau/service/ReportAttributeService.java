@@ -107,6 +107,9 @@ public class ReportAttributeService extends BaseAssetService {
                             String assetId = fieldNode.path("id").asText();
                             String name = fieldNode.path("name").asText();
                             
+                            // Extract field role from sheetFieldInstance
+                            String fieldRole = fieldNode.path("role").asText(null);
+                            
                             // Sheet info - use id directly for worksheets
                             JsonNode sheetNode = fieldNode.path("sheet");
                             String worksheetId = !sheetNode.isMissingNode() ? 
@@ -161,7 +164,7 @@ public class ReportAttributeService extends BaseAssetService {
                             String uniqueKey = assetId + "|" + worksheetId + "|" + currentSiteId;
                             processedKeys.add(uniqueKey);
                             
-                            String newHash = generateMetadataHash(assetId, name, worksheetId, datasourceId, 
+                            String newHash = generateMetadataHash(assetId, name, worksheetId, datasourceId, fieldRole,
                                     String.valueOf(isCalculated), calculationLogic, lineageInfo, currentSiteId);
                             
                             // Find related entities
@@ -181,6 +184,7 @@ public class ReportAttributeService extends BaseAssetService {
                                 if (newStatus == StatusFlag.UPDATED) {
                                     attr.setName(name);
                                     attr.setDataType(dataType);
+                                    attr.setFieldRole(fieldRole);
                                     attr.setIsCalculated(isCalculated);
                                     attr.setCalculationLogic(calculationLogic);
                                     attr.setSourceDatasourceId(datasourceId);
@@ -211,6 +215,7 @@ public class ReportAttributeService extends BaseAssetService {
                                         .siteId(currentSiteId)
                                         .name(name)
                                         .dataType(dataType)
+                                        .fieldRole(fieldRole)
                                         .isCalculated(isCalculated)
                                         .calculationLogic(calculationLogic)
                                         .sourceDatasourceId(datasourceId)

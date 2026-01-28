@@ -348,9 +348,10 @@ public class CollibraIngestionService {
         String identifierName = CollibraAsset.createProjectIdentifierName(
             project.getSiteId(), project.getAssetId(), project.getName());
         
-        // Only add Description attribute for Tableau Project
+        // Add Description and Owner in Source attributes for Tableau Project
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", project.getDescription());
+        addAttribute(attributes, "Owner in Source", project.getOwner());
 
         // Add relations to parent project and site
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();

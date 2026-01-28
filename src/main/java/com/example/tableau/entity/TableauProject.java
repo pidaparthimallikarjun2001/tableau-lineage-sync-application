@@ -57,6 +57,12 @@ public class TableauProject {
     private String parentProjectId;
 
     /**
+     * Owner username (from Tableau)
+     */
+    @Column(name = "owner", length = 256)
+    private String owner;
+
+    /**
      * Status flag for change tracking
      */
     @Enumerated(EnumType.STRING)

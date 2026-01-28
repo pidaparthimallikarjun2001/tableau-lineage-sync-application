@@ -57,6 +57,7 @@ The application uses **metadata hashing** to detect changes:
 - Name
 - Description
 - Parent Project ID (for nested projects)
+- Owner (username)
 - Site ID
 
 **Example changes that trigger UPDATED:**
@@ -66,6 +67,8 @@ The application uses **metadata hashing** to detect changes:
    - In Tableau: Right-click project → "Edit Description"
 3. **Move project to different parent:**
    - In Tableau: Drag project to another parent project (changes parent project ID)
+4. **Change project owner:**
+   - In Tableau Server: Select project → Actions → Change Owner
 
 **Changes that DO NOT trigger UPDATED:**
 - Project permissions
@@ -212,6 +215,7 @@ For **Custom SQL Data Sources:**
 - Name (field name)
 - Worksheet ID
 - Data Source ID
+- Field Role (dimension, measure, etc.)
 - Is Calculated (true/false)
 - Calculation Logic/Formula
 - Lineage Information (upstream fields)
@@ -227,10 +231,12 @@ For **Custom SQL Data Sources:**
 3. **Change field data source:**
    - Modify which data source the field comes from
    - Republish workbook
+4. **Change field role:**
+   - In Tableau Desktop: Right-click field → Convert to Dimension/Measure
+   - Republish workbook
 
 **Changes that DO NOT trigger UPDATED:**
 - Field data type
-- Field role (dimension vs measure)
 - Default aggregation
 - Number format
 

@@ -23,17 +23,20 @@ public class ProjectService extends BaseAssetService {
     private final TableauProjectRepository projectRepository;
     private final TableauSiteRepository siteRepository;
     private final TableauRestClient restClient;
+    private final TableauGraphQLClient graphQLClient;
     private final TableauAuthService authService;
     private final WorkbookService workbookService;
 
     public ProjectService(TableauProjectRepository projectRepository,
                           TableauSiteRepository siteRepository,
                           TableauRestClient restClient,
+                          TableauGraphQLClient graphQLClient,
                           TableauAuthService authService,
                           WorkbookService workbookService) {
         this.projectRepository = projectRepository;
         this.siteRepository = siteRepository;
         this.restClient = restClient;
+        this.graphQLClient = graphQLClient;
         this.authService = authService;
         this.workbookService = workbookService;
     }
@@ -68,10 +71,10 @@ public class ProjectService extends BaseAssetService {
     }
 
     /**
-     * Fetch projects from Tableau REST API.
+     * Fetch projects from Tableau GraphQL API.
      */
     public Mono<List<JsonNode>> fetchProjectsFromTableau() {
-        return restClient.getProjects();
+        return graphQLClient.fetchProjects(100);
     }
 
     /**
@@ -84,7 +87,7 @@ public class ProjectService extends BaseAssetService {
             return Mono.just(createFailureResult("Project", "No active site. Please authenticate first."));
         }
         
-        return restClient.getProjects()
+        return graphQLClient.fetchProjects(100)
                 .map(projects -> {
                     try {
                         int newCount = 0, updatedCount = 0, deletedCount = 0, unchangedCount = 0;
@@ -93,15 +96,23 @@ public class ProjectService extends BaseAssetService {
                         TableauSite site = siteRepository.findByAssetId(currentSiteId).orElse(null);
                         
                         for (JsonNode projectNode : projects) {
-                            String assetId = projectNode.path("id").asText();
+                            String assetId = projectNode.path("luid").asText();
                             String name = projectNode.path("name").asText();
                             String description = projectNode.path("description").asText(null);
                             
-                            String parentProjectId = projectNode.path("parentProjectId").asText(null);
+                            // Extract parent project ID
+                            JsonNode parentNode = projectNode.path("parentProject");
+                            String parentProjectId = !parentNode.isMissingNode() ? 
+                                    parentNode.path("luid").asText(null) : null;
+                            
+                            // Extract owner information
+                            JsonNode ownerNode = projectNode.path("owner");
+                            String owner = !ownerNode.isMissingNode() ? 
+                                    ownerNode.path("username").asText(null) : null;
                             
                             processedAssetIds.add(assetId);
                             
-                            String newHash = generateMetadataHash(assetId, name, description, parentProjectId, currentSiteId);
+                            String newHash = generateMetadataHash(assetId, name, description, parentProjectId, owner, currentSiteId);
                             
                             Optional<TableauProject> existingProject = projectRepository.findByAssetIdAndSiteId(assetId, currentSiteId);
                             
@@ -114,6 +125,7 @@ public class ProjectService extends BaseAssetService {
                                     project.setName(name);
                                     project.setDescription(description);
                                     project.setParentProjectId(parentProjectId);
+                                    project.setOwner(owner);
                                     project.setMetadataHash(newHash);
                                     project.setStatusFlag(StatusFlag.UPDATED);
                                     if (site != null) {
@@ -138,6 +150,7 @@ public class ProjectService extends BaseAssetService {
                                         .name(name)
                                         .description(description)
                                         .parentProjectId(parentProjectId)
+                                        .owner(owner)
                                         .metadataHash(newHash)
                                         .statusFlag(StatusFlag.NEW)
                                         .site(site)
