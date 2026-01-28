@@ -105,14 +105,13 @@ public class ProjectService extends BaseAssetService {
                             String parentProjectId = !parentNode.isMissingNode() ? 
                                     parentNode.path("luid").asText(null) : null;
                             
-                            // Extract owner information
+                            // Extract owner information - use username with fallback to name
                             JsonNode ownerNode = projectNode.path("owner");
-                            String owner = null;
-                            if (!ownerNode.isMissingNode() && !ownerNode.isNull()) {
-                                owner = ownerNode.path("username").asText(null);
-                            }
+                            String owner = !ownerNode.isMissingNode() && !ownerNode.isNull() ? 
+                                    ownerNode.path("username").asText(ownerNode.path("name").asText(null)) : null;
+                            
                             if (owner == null || owner.isEmpty()) {
-                                log.debug("Project {} (ID: {}) has null or empty owner", name, assetId);
+                                log.warn("Project {} (ID: {}) has no owner - this should not happen in Tableau UI", name, assetId);
                             }
                             
                             processedAssetIds.add(assetId);
