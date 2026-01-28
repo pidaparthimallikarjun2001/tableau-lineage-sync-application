@@ -107,8 +107,10 @@ public class ProjectService extends BaseAssetService {
                             
                             // Extract owner information
                             JsonNode ownerNode = projectNode.path("owner");
-                            String owner = !ownerNode.isMissingNode() ? 
-                                    ownerNode.path("username").asText(null) : null;
+                            String owner = null;
+                            if (!ownerNode.isMissingNode() && !ownerNode.isNull()) {
+                                owner = ownerNode.path("username").asText(null);
+                            }
                             
                             processedAssetIds.add(assetId);
                             
