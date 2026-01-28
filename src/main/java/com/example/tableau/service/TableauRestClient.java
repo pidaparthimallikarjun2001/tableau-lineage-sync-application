@@ -102,10 +102,65 @@ public class TableauRestClient {
     }
 
     /**
-     * Get projects for the current site.
+     * Get projects for the current site with owner information.
      */
     public Mono<List<JsonNode>> getProjects() {
-        return getPagedResource("/sites/{siteId}/projects", "projects", "project");
+        return getPagedResourceWithFields("/sites/{siteId}/projects", "projects", "project", "_all_");
+    }
+    
+    /**
+     * Helper method to get paged resources with fields parameter.
+     */
+    private Mono<List<JsonNode>> getPagedResourceWithFields(String pathTemplate, String containerKey, String itemKey, String fields) {
+        String siteId = authService.getCurrentSiteId();
+        if (siteId == null || siteId.isEmpty()) {
+            return Mono.error(new TableauApiException("No active site. Please sign in first."));
+        }
+        
+        String path = pathTemplate.replace("{siteId}", siteId);
+        List<JsonNode> allResults = new ArrayList<>();
+        
+        return fetchAllPagesWithFields(path, containerKey, itemKey, 1, 100, fields, allResults);
+    }
+    
+    private Mono<List<JsonNode>> fetchAllPagesWithFields(String path, String containerKey, String itemKey,
+                                                          int pageNumber, int pageSize, String fields, List<JsonNode> results) {
+        return authService.getAuthToken()
+                .flatMap(token -> webClient.get()
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/api/" + apiConfig.getApiVersion() + path)
+                                .queryParam("pageNumber", pageNumber)
+                                .queryParam("pageSize", pageSize)
+                                .queryParam("fields", fields)
+                                .build())
+                        .header("X-Tableau-Auth", token)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .retrieve()
+                        .bodyToMono(String.class)
+                        .flatMap(json -> {
+                            JsonNode root = parseResponse(json);
+                            JsonNode container = root.path(containerKey);
+                            JsonNode items = container.path(itemKey);
+                            
+                            if (items.isArray()) {
+                                items.forEach(results::add);
+                            }
+                            
+                            // Check pagination
+                            JsonNode pagination = root.path("pagination");
+                            int totalAvailable = pagination.path("totalAvailable").asInt(0);
+                            int pageNum = pagination.path("pageNumber").asInt(1);
+                            int pageSz = pagination.path("pageSize").asInt(100);
+                            
+                            int fetchedSoFar = pageNum * pageSz;
+                            if (fetchedSoFar < totalAvailable) {
+                                return fetchAllPagesWithFields(path, containerKey, itemKey, pageNumber + 1, pageSize, fields, results);
+                            }
+                            
+                            return Mono.just(results);
+                        })
+                        .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
+                                .filter(this::isRetryableError)));
     }
 
     /**
