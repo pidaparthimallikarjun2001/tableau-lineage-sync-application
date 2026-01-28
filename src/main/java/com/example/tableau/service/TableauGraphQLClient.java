@@ -288,6 +288,7 @@ public class TableauGraphQLClient {
                     sheetFieldInstances {
                         id
                         name
+                        role
                         datasource {
                             id
                             name
@@ -603,6 +604,12 @@ public class TableauGraphQLClient {
                                 // Copy field instance properties
                                 enhancedInstance.put("id", fieldInstance.path("id").asText());
                                 enhancedInstance.put("name", fieldInstance.path("name").asText());
+                                
+                                // Add role field
+                                String role = fieldInstance.path("role").asText(null);
+                                if (role != null) {
+                                    enhancedInstance.put("role", role);
+                                }
                                 
                                 // Add datasource info from field instance
                                 JsonNode datasource = fieldInstance.path("datasource");
