@@ -754,4 +754,37 @@ class CollibraIngestionServiceTest {
         verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Projects"), eq("Tableau Technology"));
         verify(collibraClient, never()).deleteAsset(anyString());
     }
+
+    @Test
+    void testIngestWorkbooksWithDeletion() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        
+        // Create a workbook to delete
+        TableauWorkbook workbookToDelete = createTestWorkbook("workbook-del", "Deleted Workbook", "site-1", project, StatusFlag.DELETED);
+
+        when(workbookRepository.findAllWithProject()).thenReturn(List.of(workbookToDelete));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Workbook", 0, 0, 0, 0, 0)));
+
+        // Mock the deletion flow
+        String identifierToDelete = "site-1 > workbook-del";
+        when(collibraClient.findAssetByIdentifier(eq(identifierToDelete), anyString(), anyString()))
+                .thenReturn(Mono.just("uuid-789"));
+        when(collibraClient.deleteAsset("uuid-789"))
+                .thenReturn(Mono.just(true));
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getAssetsDeleted(), "Should have deleted 1 asset");
+        
+        // Verify deletion was attempted
+        verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Workbooks"), eq("Tableau Technology"));
+        verify(collibraClient).deleteAsset("uuid-789");
+    }
 }
