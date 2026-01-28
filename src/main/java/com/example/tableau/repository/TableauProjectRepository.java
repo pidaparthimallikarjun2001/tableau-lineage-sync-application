@@ -41,9 +41,24 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
     @Query("SELECT p FROM TableauProject p WHERE p.siteId = :siteId AND p.statusFlag != 'DELETED'")
     List<TableauProject> findAllActiveBySiteId(@Param("siteId") String siteId);
     
+    /**
+     * Find all projects with their site and server relationships eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @return List of all projects with site and server relationships loaded
+     */
     @Query("SELECT DISTINCT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server")
     List<TableauProject> findAllWithSiteAndServer();
     
+    /**
+     * Find a project by ID with its site and server relationships eagerly loaded.
+     * This method avoids lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param id the project database ID
+     * @return Optional containing the project with site and server loaded, or empty if not found
+     */
     @Query("SELECT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server WHERE p.id = :id")
     Optional<TableauProject> findByIdWithSiteAndServer(@Param("id") Long id);
 

@@ -191,8 +191,8 @@ class CollibraIngestionServiceTest {
         TableauProject parentProject = createTestProject("parent-proj", "Parent Project", "site-1", null, StatusFlag.ACTIVE);
         TableauProject childProject = createTestProject("child-proj", "Child Project", "site-1", "parent-proj", StatusFlag.NEW);
 
+        // Batch ingestion no longer needs this stub since it uses the projectMap internally
         when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(parentProject, childProject));
-        when(projectRepository.findByAssetIdAndSiteId("parent-proj", "site-1")).thenReturn(Optional.of(parentProject));
 
         when(collibraClient.importAssets(anyList(), eq("Project")))
                 .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 1, 1, 0, 0, 0)));
