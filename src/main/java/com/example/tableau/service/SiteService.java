@@ -93,6 +93,12 @@ public class SiteService extends BaseAssetService {
                             
                             processedAssetIds.add(assetId);
                             
+                            // Build site URL from server URL and content URL
+                            String siteUrl = null;
+                            if (server != null && server.getServerUrl() != null && !contentUrl.isEmpty()) {
+                                siteUrl = server.getServerUrl() + "/#/site/" + contentUrl + "/";
+                            }
+                            
                             String newHash = generateMetadataHash(assetId, name, contentUrl);
                             
                             Optional<TableauSite> existingSite = siteRepository.findByAssetId(assetId);
@@ -105,6 +111,7 @@ public class SiteService extends BaseAssetService {
                                 if (newStatus == StatusFlag.UPDATED) {
                                     site.setName(name);
                                     site.setContentUrl(contentUrl);
+                                    site.setSiteUrl(siteUrl);
                                     site.setMetadataHash(newHash);
                                     site.setStatusFlag(StatusFlag.UPDATED);
                                     if (server != null) {
@@ -127,6 +134,7 @@ public class SiteService extends BaseAssetService {
                                         .assetId(assetId)
                                         .name(name)
                                         .contentUrl(contentUrl)
+                                        .siteUrl(siteUrl)
                                         .metadataHash(newHash)
                                         .statusFlag(StatusFlag.NEW)
                                         .server(server)
