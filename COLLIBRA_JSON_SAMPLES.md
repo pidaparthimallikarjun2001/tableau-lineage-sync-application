@@ -165,7 +165,7 @@ None (Server is the root of the hierarchy)
   },
   "displayName": "Sales Analytics",
   "identifier": {
-    "name": "proj-456def > Sales Analytics",
+    "name": "site-123abc > proj-456def > Sales Analytics",
     "domain": {
       "name": "Tableau Projects",
       "community": {
@@ -177,11 +177,6 @@ None (Server is the root of the hierarchy)
     "Description": [
       {
         "value": "Sales analytics dashboards and reports"
-      }
-    ],
-    "Site ID": [
-      {
-        "value": "site-123abc"
       }
     ]
   },
@@ -210,7 +205,7 @@ None (Server is the root of the hierarchy)
   },
   "displayName": "Q1 Reports",
   "identifier": {
-    "name": "proj-789ghi > Q1 Reports",
+    "name": "site-123abc > proj-789ghi > Q1 Reports",
     "domain": {
       "name": "Tableau Projects",
       "community": {
@@ -223,11 +218,6 @@ None (Server is the root of the hierarchy)
       {
         "value": "Q1 2024 sales reports"
       }
-    ],
-    "Site ID": [
-      {
-        "value": "site-123abc"
-      }
     ]
   },
   "relations": {
@@ -239,7 +229,7 @@ None (Server is the root of the hierarchy)
             "name": "Tableau Technology"
           }
         },
-        "name": "proj-456def > Sales Analytics"
+        "name": "site-123abc > proj-456def > Sales Analytics"
       },
       {
         "domain": {
@@ -257,7 +247,6 @@ None (Server is the root of the hierarchy)
 
 ### Attributes to Configure in Collibra
 - **Description** (String) - Project description
-- **Site ID** (String) - Site identifier for composite uniqueness
 
 ### Relations to Configure in Collibra
 - **relationid:SOURCE** - Points to parent Site and optionally parent Project (for nested projects)
