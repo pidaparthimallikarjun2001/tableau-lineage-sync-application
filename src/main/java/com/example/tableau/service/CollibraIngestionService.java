@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -209,7 +211,7 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapSiteToCollibraAsset(TableauSite site) {
-        String identifierName = CollibraAsset.createIdentifierName(site.getAssetId(), site.getName());
+        String identifierName = CollibraAsset.createSiteIdentifierName(site.getAssetId(), site.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "URL", site.getSiteUrl());
@@ -218,7 +220,7 @@ public class CollibraIngestionService {
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (site.getServer() != null) {
             TableauServer server = site.getServer();
-            String serverName = server.getAssetId() + " > " + server.getName();
+            String serverName = CollibraAsset.createServerIdentifierName(server.getAssetId(), server.getName());
             addRelation(relations, "0195fcd7-70c3-7cda-aaec-0c5ae3dc3af7:SOURCE", serverName,
                     collibraConfig.getServerDomainName(), collibraConfig.getCommunityName());
         }
@@ -343,7 +345,7 @@ public class CollibraIngestionService {
         // Add relation to parent site
         if (project.getSite() != null) {
             TableauSite site = project.getSite();
-            String siteName = site.getAssetId() + " > " + site.getName();
+            String siteName = CollibraAsset.createSiteIdentifierName(site.getAssetId(), site.getName());
             addRelation(relations, "0195fc55-b49f-7711-9ce6-d87a1f60b36a:SOURCE", siteName,
                     collibraConfig.getSiteDomainName(), collibraConfig.getCommunityName());
         }
@@ -378,7 +380,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<TableauWorkbook> workbooks = workbookRepository.findAll();
+        List<TableauWorkbook> workbooks = workbookRepository.findAllWithProject();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<TableauWorkbook> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -423,13 +425,24 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapWorkbookToCollibraAsset(TableauWorkbook workbook) {
-        String identifierName = CollibraAsset.createIdentifierName(workbook.getAssetId(), workbook.getName());
+        String identifierName = CollibraAsset.createWorkbookIdentifierName(
+            workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", workbook.getDescription());
-        addAttribute(attributes, "Owner", workbook.getOwner());
-        addAttribute(attributes, "Content URL", workbook.getContentUrl());
-        addAttribute(attributes, "Site ID", workbook.getSiteId());
+        addAttribute(attributes, "Owner in Source", workbook.getOwner());
+        
+        // Add Document creation date (from tableauCreatedAt)
+        if (workbook.getTableauCreatedAt() != null) {
+            addAttribute(attributes, "Document creation date", 
+                workbook.getTableauCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
+        
+        // Add Document modification date (from tableauUpdatedAt)
+        if (workbook.getTableauUpdatedAt() != null) {
+            addAttribute(attributes, "Document modification date", 
+                workbook.getTableauUpdatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        }
 
         // Add relation to parent project
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
@@ -437,7 +450,7 @@ public class CollibraIngestionService {
             TableauProject project = workbook.getProject();
             String projectName = CollibraAsset.createProjectIdentifierName(
                 project.getSiteId(), project.getAssetId(), project.getName());
-            addRelation(relations, "relationid:SOURCE", projectName,
+            addRelation(relations, "0195fcea-cc73-7284-88a6-ea770982b1ba:SOURCE", projectName,
                     collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
         }
 
@@ -471,7 +484,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<TableauWorksheet> worksheets = worksheetRepository.findAll();
+        List<TableauWorksheet> worksheets = worksheetRepository.findAllWithWorkbook();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<TableauWorksheet> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -516,18 +529,18 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapWorksheetToCollibraAsset(TableauWorksheet worksheet) {
-        String identifierName = CollibraAsset.createIdentifierName(worksheet.getAssetId(), worksheet.getName());
+        String identifierName = CollibraAsset.createWorksheetIdentifierName(
+            worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
         
-        Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
-        addAttribute(attributes, "Owner", worksheet.getOwner());
-        addAttribute(attributes, "Site ID", worksheet.getSiteId());
+        // No attributes for Tableau Worksheet as per requirements
 
         // Add relation to parent workbook
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (worksheet.getWorkbook() != null) {
             TableauWorkbook workbook = worksheet.getWorkbook();
-            String workbookName = workbook.getAssetId() + " > " + workbook.getName();
-            addRelation(relations, "relationid:SOURCE", workbookName,
+            String workbookName = CollibraAsset.createWorkbookIdentifierName(
+                workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
+            addRelation(relations, "0195fd0b-f14f-7e72-a382-750d4f3a704e:SOURCE", workbookName,
                     collibraConfig.getWorkbookDomainName(), collibraConfig.getCommunityName());
         }
 
@@ -546,7 +559,7 @@ public class CollibraIngestionService {
                             .build())
                         .build())
                     .build())
-                .attributes(attributes.isEmpty() ? null : attributes)
+                .attributes(null)
                 .relations(relations.isEmpty() ? null : relations)
                 .build();
     }
@@ -625,7 +638,8 @@ public class CollibraIngestionService {
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (dataSource.getWorkbook() != null) {
             TableauWorkbook workbook = dataSource.getWorkbook();
-            String workbookName = workbook.getAssetId() + " > " + workbook.getName();
+            String workbookName = CollibraAsset.createWorkbookIdentifierName(
+                workbook.getSiteId(), workbook.getAssetId(), workbook.getName());
             addRelation(relations, "relationid:SOURCE", workbookName,
                     collibraConfig.getWorkbookDomainName(), collibraConfig.getCommunityName());
         }
@@ -725,7 +739,8 @@ public class CollibraIngestionService {
         // Add relation to parent worksheet
         if (attr.getWorksheet() != null) {
             TableauWorksheet worksheet = attr.getWorksheet();
-            String worksheetName = worksheet.getAssetId() + " > " + worksheet.getName();
+            String worksheetName = CollibraAsset.createWorksheetIdentifierName(
+                worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
             addRelation(relations, "relationid:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
         }
@@ -733,7 +748,8 @@ public class CollibraIngestionService {
         // Add relation to source data source
         if (attr.getDataSource() != null) {
             TableauDataSource dataSource = attr.getDataSource();
-            String dataSourceName = dataSource.getAssetId() + " > " + dataSource.getName();
+            String dataSourceName = CollibraAsset.createIdentifierName(
+                dataSource.getAssetId(), dataSource.getName());
             addRelation(relations, "relationid:TARGET", dataSourceName,
                     collibraConfig.getDatasourceDomainName(), collibraConfig.getCommunityName());
         }

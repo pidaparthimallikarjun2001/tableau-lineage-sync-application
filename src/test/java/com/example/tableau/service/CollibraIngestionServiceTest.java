@@ -3,6 +3,7 @@ package com.example.tableau.service;
 import com.example.tableau.config.CollibraApiConfig;
 import com.example.tableau.dto.collibra.CollibraAsset;
 import com.example.tableau.dto.collibra.CollibraIngestionResult;
+import com.example.tableau.dto.collibra.CollibraRelationTarget;
 import com.example.tableau.entity.*;
 import com.example.tableau.enums.StatusFlag;
 import com.example.tableau.repository.*;
@@ -321,5 +322,169 @@ class CollibraIngestionServiceTest {
                 .createdTimestamp(LocalDateTime.now())
                 .lastUpdatedTimestamp(LocalDateTime.now())
                 .build();
+    }
+
+    private TableauWorkbook createTestWorkbook(String assetId, String name, String siteId, 
+                                                TableauProject project, StatusFlag statusFlag) {
+        return TableauWorkbook.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .siteId(siteId)
+                .description("Test workbook description")
+                .owner("test.user@example.com")
+                .tableauCreatedAt(LocalDateTime.of(2024, 1, 15, 10, 30))
+                .tableauUpdatedAt(LocalDateTime.of(2024, 2, 20, 14, 45))
+                .project(project)
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    private TableauWorksheet createTestWorksheet(String assetId, String name, String siteId,
+                                                  TableauWorkbook workbook, StatusFlag statusFlag) {
+        return TableauWorksheet.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .siteId(siteId)
+                .owner("test.user@example.com")
+                .workbook(workbook)
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @Test
+    void testWorkbookIdentifierNameFormat() {
+        // Test that workbook identifier name follows format: siteid > workbookid
+        String identifierName = CollibraAsset.createWorkbookIdentifierName("site-123", "workbook-456", "My Workbook");
+        assertEquals("site-123 > workbook-456", identifierName);
+    }
+
+    @Test
+    void testWorksheetIdentifierNameFormat() {
+        // Test that worksheet identifier name follows format: siteid > worksheetid
+        String identifierName = CollibraAsset.createWorksheetIdentifierName("site-123", "worksheet-789", "My Worksheet");
+        assertEquals("site-123 > worksheet-789", identifierName);
+    }
+
+    @Test
+    void testSiteIdentifierNameFormat() {
+        // Test that site identifier name follows format: siteid
+        String identifierName = CollibraAsset.createSiteIdentifierName("site-123", "My Site");
+        assertEquals("site-123", identifierName);
+    }
+
+    @Test
+    void testServerIdentifierNameFormat() {
+        // Test that server identifier name follows format: serverid
+        String identifierName = CollibraAsset.createServerIdentifierName("server-456", "My Server");
+        assertEquals("server-456", identifierName);
+    }
+
+    @Test
+    void testProjectIdentifierNameFormat() {
+        // Test that project identifier name follows format: siteid > projectid
+        String identifierName = CollibraAsset.createProjectIdentifierName("site-123", "project-789", "My Project");
+        assertEquals("site-123 > project-789", identifierName);
+    }
+
+    @Test
+    void testIngestWorkbooksWithNewAttributes() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        TableauWorkbook workbook = createTestWorkbook("workbook-1", "Test Workbook", "site-1", project, StatusFlag.NEW);
+
+        when(workbookRepository.findAllWithProject()).thenReturn(List.of(workbook));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertNotNull(assets);
+                    assertEquals(1, assets.size());
+                    
+                    CollibraAsset asset = assets.get(0);
+                    // Verify identifier format: siteid > workbookid
+                    assertEquals("site-1 > workbook-1", asset.getIdentifier().getName());
+                    
+                    // Verify attributes
+                    assertNotNull(asset.getAttributes());
+                    assertTrue(asset.getAttributes().containsKey("Description"));
+                    assertTrue(asset.getAttributes().containsKey("Owner in Source"));
+                    assertTrue(asset.getAttributes().containsKey("Document creation date"));
+                    assertTrue(asset.getAttributes().containsKey("Document modification date"));
+                    
+                    // Verify old attributes are removed
+                    assertFalse(asset.getAttributes().containsKey("Content URL"));
+                    assertFalse(asset.getAttributes().containsKey("Site ID"));
+                    assertFalse(asset.getAttributes().containsKey("Owner")); // Changed to "Owner in Source"
+                    
+                    // Verify relation to project with correct relation ID
+                    assertNotNull(asset.getRelations());
+                    assertTrue(asset.getRelations().containsKey("0195fcea-cc73-7284-88a6-ea770982b1ba:SOURCE"));
+                    
+                    return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Workbook"));
+        verify(workbookRepository).findAllWithProject();
+    }
+
+    @Test
+    void testIngestWorksheetsWithNoAttributes() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorksheetDomainName()).thenReturn("Tableau Worksheets");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        TableauWorkbook workbook = createTestWorkbook("workbook-1", "Test Workbook", "site-1", project, StatusFlag.ACTIVE);
+        TableauWorksheet worksheet = createTestWorksheet("worksheet-1", "Test Worksheet", "site-1", workbook, StatusFlag.NEW);
+
+        when(worksheetRepository.findAllWithWorkbook()).thenReturn(List.of(worksheet));
+        when(collibraClient.importAssets(anyList(), eq("Worksheet")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertNotNull(assets);
+                    assertEquals(1, assets.size());
+                    
+                    CollibraAsset asset = assets.get(0);
+                    // Verify identifier format: siteid > worksheetid
+                    assertEquals("site-1 > worksheet-1", asset.getIdentifier().getName());
+                    
+                    // Verify no attributes (should be null or empty)
+                    if (asset.getAttributes() != null) {
+                        assertTrue(asset.getAttributes().isEmpty(), "Worksheet should have no attributes");
+                    }
+                    
+                    // Verify relation to workbook with correct relation ID
+                    assertNotNull(asset.getRelations());
+                    assertTrue(asset.getRelations().containsKey("0195fd0b-f14f-7e72-a382-750d4f3a704e:SOURCE"));
+                    
+                    // Verify workbook identifier format in relation
+                    List<CollibraRelationTarget> targets = asset.getRelations().get("0195fd0b-f14f-7e72-a382-750d4f3a704e:SOURCE");
+                    assertNotNull(targets);
+                    assertEquals(1, targets.size());
+                    assertEquals("site-1 > workbook-1", targets.get(0).getName());
+                    
+                    return Mono.just(CollibraIngestionResult.success("Worksheet", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestWorksheetsToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Worksheet"));
+        verify(worksheetRepository).findAllWithWorkbook();
     }
 }
