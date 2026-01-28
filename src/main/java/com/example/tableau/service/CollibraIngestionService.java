@@ -349,7 +349,7 @@ public class CollibraIngestionService {
         }
 
         return CollibraAsset.builder()
-                .resourceType("Tableau Project")
+                .resourceType("Asset")
                 .type(CollibraType.builder()
                     .name("Tableau Project")
                     .build())

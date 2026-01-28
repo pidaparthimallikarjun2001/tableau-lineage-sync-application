@@ -232,6 +232,40 @@ class CollibraIngestionServiceTest {
         assertTrue(result.isSuccess());
     }
 
+    @Test
+    void testProjectResourceTypeIsAsset() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauServer server = createTestServer("server-1", "Test Server", StatusFlag.ACTIVE);
+        TableauSite site = createTestSite("site-1", "Test Site", "testsite", server, StatusFlag.ACTIVE);
+        TableauProject project = createTestProjectWithSite("proj-1", "Test Project", "site-1", null, site, StatusFlag.NEW);
+
+        when(projectRepository.findAllWithSiteAndServer()).thenReturn(List.of(project));
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertNotNull(assets);
+                    assertFalse(assets.isEmpty());
+                    
+                    // Verify that the project's resourceType is "Asset"
+                    CollibraAsset projectAsset = assets.get(0);
+                    assertEquals("Asset", projectAsset.getResourceType(), 
+                        "Project resourceType should be 'Asset'");
+                    assertEquals("Tableau Project", projectAsset.getType().getName(),
+                        "Project type name should be 'Tableau Project'");
+                    
+                    return Mono.just(CollibraIngestionResult.success("Project", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Project"));
+    }
+
     private TableauServer createTestServer(String assetId, String name, StatusFlag statusFlag) {
         return TableauServer.builder()
                 .id(1L)
