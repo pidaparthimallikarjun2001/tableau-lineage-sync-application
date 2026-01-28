@@ -96,7 +96,7 @@ public class SiteService extends BaseAssetService {
                             // Build site URL from server URL and content URL
                             String siteUrl = null;
                             if (server != null && server.getServerUrl() != null && !contentUrl.isEmpty()) {
-                                siteUrl = server.getServerUrl() + "/#/site/" + contentUrl;
+                                siteUrl = server.getServerUrl() + "/#/site/" + contentUrl + "/";
                             }
                             
                             String newHash = generateMetadataHash(assetId, name, contentUrl);
