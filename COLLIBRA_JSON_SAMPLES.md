@@ -96,17 +96,7 @@ None (Server is the root of the hierarchy)
     }
   },
   "attributes": {
-    "Description": [
-      {
-        "value": "Tableau Site: Marketing Site"
-      }
-    ],
-    "Content URL": [
-      {
-        "value": "marketing"
-      }
-    ],
-    "Site URL": [
+    "URL": [
       {
         "value": "https://tableau.company.com/#/site/marketing"
       }
@@ -129,9 +119,7 @@ None (Server is the root of the hierarchy)
 ```
 
 ### Attributes to Configure in Collibra
-- **Description** (String) - Description of the site
-- **Content URL** (String) - Content URL identifier for the site
-- **Site URL** (String) - Full URL to access the site
+- **URL** (String) - Full URL to access the site in format: `{serverUrl}/#/site/{contentUrl}`
 
 ### Relations to Configure in Collibra
 - **relationid:SOURCE** - Points to parent Tableau Server (contains relationship)
