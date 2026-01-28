@@ -288,10 +288,13 @@ public class TableauGraphQLClient {
                     sheetFieldInstances {
                         id
                         name
-                        role
                         datasource {
                             id
                             name
+                        }
+                        ... on CalculatedField {
+                            role
+                            dataType
                         }
                     }
                     upstreamFields {
