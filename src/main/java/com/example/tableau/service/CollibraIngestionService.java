@@ -219,7 +219,7 @@ public class CollibraIngestionService {
         if (site.getServer() != null) {
             TableauServer server = site.getServer();
             String serverName = server.getAssetId() + " > " + server.getName();
-            addRelation(relations, "relationid:SOURCE", serverName,
+            addRelation(relations, "0195fcd7-70c3-7cda-aaec-0c5ae3dc3af7:SOURCE", serverName,
                     collibraConfig.getServerDomainName(), collibraConfig.getCommunityName());
         }
 
