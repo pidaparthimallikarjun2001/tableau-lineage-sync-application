@@ -212,9 +212,7 @@ public class CollibraIngestionService {
         String identifierName = CollibraAsset.createIdentifierName(site.getAssetId(), site.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
-        addAttribute(attributes, "Description", "Tableau Site: " + site.getName());
-        addAttribute(attributes, "Content URL", site.getContentUrl());
-        addAttribute(attributes, "Site URL", site.getSiteUrl());
+        addAttribute(attributes, "URL", site.getSiteUrl());
 
         // Add relation to parent server if available
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
