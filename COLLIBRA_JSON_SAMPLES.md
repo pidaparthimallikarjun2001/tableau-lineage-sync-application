@@ -310,7 +310,7 @@ None (Server is the root of the hierarchy)
             "name": "Tableau Technology"
           }
         },
-        "name": "proj-456def > Sales Analytics"
+        "name": "site-123abc > proj-456def > Sales Analytics"
       }
     ]
   }

@@ -309,7 +309,8 @@ public class CollibraIngestionService {
 
     private CollibraAsset mapProjectToCollibraAsset(TableauProject project, Map<String, TableauProject> projectMap) {
         // Build identifier name in format: siteid > projectid > project name
-        String identifierName = project.getSiteId() + " > " + project.getAssetId() + " > " + project.getName();
+        String identifierName = CollibraAsset.createProjectIdentifierName(
+            project.getSiteId(), project.getAssetId(), project.getName());
         
         // Only add Description attribute for Tableau Project
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
@@ -332,7 +333,8 @@ public class CollibraIngestionService {
             }
             
             if (parentProject != null) {
-                String parentName = parentProject.getSiteId() + " > " + parentProject.getAssetId() + " > " + parentProject.getName();
+                String parentName = CollibraAsset.createProjectIdentifierName(
+                    parentProject.getSiteId(), parentProject.getAssetId(), parentProject.getName());
                 addRelation(relations, "00000000-0000-0000-0000-120000000001:SOURCE", parentName,
                         collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
             }
@@ -433,7 +435,8 @@ public class CollibraIngestionService {
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (workbook.getProject() != null) {
             TableauProject project = workbook.getProject();
-            String projectName = project.getSiteId() + " > " + project.getAssetId() + " > " + project.getName();
+            String projectName = CollibraAsset.createProjectIdentifierName(
+                project.getSiteId(), project.getAssetId(), project.getName());
             addRelation(relations, "relationid:SOURCE", projectName,
                     collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
         }
