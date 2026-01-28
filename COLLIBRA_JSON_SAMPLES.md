@@ -2,6 +2,27 @@
 
 This document provides sample JSON formats for importing all Tableau asset types into Collibra. Use these samples to configure your Collibra meta model with the appropriate attributes and relations.
 
+## Important: JSON File Format
+
+The Collibra Import API expects the JSON file to be an **array of resource objects** at the root level:
+
+```json
+[
+  {
+    "resourceType": "Asset",
+    "type": { "name": "Tableau Server" },
+    ...
+  },
+  {
+    "resourceType": "Asset",
+    "type": { "name": "Tableau Site" },
+    ...
+  }
+]
+```
+
+**Do NOT wrap** the assets in an object with an "assets" property. The multipart form parameters (`sendNotification`, `continueOnError`) should be sent as separate form fields, not inside the JSON file.
+
 ## Table of Contents
 1. [Tableau Server](#1-tableau-server)
 2. [Tableau Site](#2-tableau-site)
