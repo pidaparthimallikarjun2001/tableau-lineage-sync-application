@@ -605,10 +605,19 @@ public class TableauGraphQLClient {
                                 enhancedInstance.put("id", fieldInstance.path("id").asText());
                                 enhancedInstance.put("name", fieldInstance.path("name").asText());
                                 
-                                // Add role field
-                                String role = fieldInstance.path("role").asText(null);
-                                if (role != null) {
-                                    enhancedInstance.put("role", role);
+                                // Add role field - always include even if null to ensure field is present
+                                JsonNode roleNode = fieldInstance.path("role");
+                                String role = null;
+                                if (!roleNode.isMissingNode() && !roleNode.isNull()) {
+                                    role = roleNode.asText(null);
+                                    // Handle empty strings as null
+                                    if (role != null && role.isEmpty()) {
+                                        role = null;
+                                    }
+                                }
+                                enhancedInstance.put("role", role);
+                                if (role == null) {
+                                    log.debug("Field instance {} has null or missing role", fieldInstance.path("id").asText());
                                 }
                                 
                                 // Add datasource info from field instance

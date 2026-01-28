@@ -71,10 +71,10 @@ public class ProjectService extends BaseAssetService {
     }
 
     /**
-     * Fetch projects from Tableau GraphQL API.
+     * Fetch projects from Tableau REST API.
      */
     public Mono<List<JsonNode>> fetchProjectsFromTableau() {
-        return graphQLClient.fetchProjects(100);
+        return restClient.getProjects();
     }
 
     /**
@@ -87,7 +87,7 @@ public class ProjectService extends BaseAssetService {
             return Mono.just(createFailureResult("Project", "No active site. Please authenticate first."));
         }
         
-        return graphQLClient.fetchProjects(100)
+        return restClient.getProjects()
                 .map(projects -> {
                     try {
                         int newCount = 0, updatedCount = 0, deletedCount = 0, unchangedCount = 0;
@@ -96,19 +96,26 @@ public class ProjectService extends BaseAssetService {
                         TableauSite site = siteRepository.findByAssetId(currentSiteId).orElse(null);
                         
                         for (JsonNode projectNode : projects) {
-                            String assetId = projectNode.path("luid").asText();
+                            // REST API uses 'id' field for project ID
+                            String assetId = projectNode.path("id").asText();
                             String name = projectNode.path("name").asText();
                             String description = projectNode.path("description").asText(null);
                             
-                            // Extract parent project ID
-                            JsonNode parentNode = projectNode.path("parentProject");
-                            String parentProjectId = !parentNode.isMissingNode() ? 
-                                    parentNode.path("luid").asText(null) : null;
+                            // Extract parent project ID from REST API
+                            String parentProjectId = projectNode.path("parentProjectId").asText(null);
                             
-                            // Extract owner information
+                            // Extract owner information from REST API
+                            // With fields=_all_, REST API returns owner as { "id": "...", "name": "..." }
                             JsonNode ownerNode = projectNode.path("owner");
-                            String owner = !ownerNode.isMissingNode() ? 
-                                    ownerNode.path("username").asText(null) : null;
+                            String owner = null;
+                            if (!ownerNode.isMissingNode() && !ownerNode.isNull()) {
+                                // Try to get owner name, fall back to ID if name not available
+                                owner = ownerNode.path("name").asText(ownerNode.path("id").asText(null));
+                            }
+                            
+                            if (owner == null || owner.isEmpty()) {
+                                log.warn("Project {} (ID: {}) has no owner - this should not happen in Tableau UI", name, assetId);
+                            }
                             
                             processedAssetIds.add(assetId);
                             

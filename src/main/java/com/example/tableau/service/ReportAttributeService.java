@@ -160,6 +160,11 @@ public class ReportAttributeService extends BaseAssetService {
                                 }
                             }
                             
+                            // Validate: calculated fields should always have a role
+                            if (isCalculated && (fieldRole == null || fieldRole.isEmpty())) {
+                                log.warn("Calculated field {} (ID: {}) is missing role - this should not happen", name, assetId);
+                            }
+                            
                             // Unique key is assetId + worksheetId + siteId
                             String uniqueKey = assetId + "|" + worksheetId + "|" + currentSiteId;
                             processedKeys.add(uniqueKey);
