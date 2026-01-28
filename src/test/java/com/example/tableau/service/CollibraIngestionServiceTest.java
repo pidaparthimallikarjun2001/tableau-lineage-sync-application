@@ -18,6 +18,7 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -457,19 +458,22 @@ class CollibraIngestionServiceTest {
                     List<CollibraAsset> assets = invocation.getArgument(0);
                     CollibraAsset asset = assets.get(0);
                     
-                    // Verify date format is M/d/yy (e.g., 1/15/24, 2/20/24)
-                    // Note: Single-digit months and days have no leading zeros
+                    // Verify date format is Unix timestamp in milliseconds
+                    // LocalDateTime(2024, 1, 15, 10, 30) -> LocalDate(2024-01-15) at UTC midnight
+                    // LocalDateTime(2024, 2, 20, 14, 45) -> LocalDate(2024-02-20) at UTC midnight
                     List<CollibraAttributeValue> creationDates = asset.getAttributes().get("Document creation date");
                     assertNotNull(creationDates, "Document creation date should be present");
                     assertEquals(1, creationDates.size());
-                    assertEquals("1/15/24", creationDates.get(0).getValue(), 
-                        "Creation date should be in M/d/yy format (1/15/24 for January 15, 2024)");
+                    // 2024-01-15T00:00:00Z = 1705276800000
+                    assertEquals("1705276800000", creationDates.get(0).getValue(), 
+                        "Creation date should be Unix timestamp in milliseconds for 2024-01-15 at UTC midnight");
                     
                     List<CollibraAttributeValue> modificationDates = asset.getAttributes().get("Document modification date");
                     assertNotNull(modificationDates, "Document modification date should be present");
                     assertEquals(1, modificationDates.size());
-                    assertEquals("2/20/24", modificationDates.get(0).getValue(), 
-                        "Modification date should be in M/d/yy format (2/20/24 for February 20, 2024)");
+                    // 2024-02-20T00:00:00Z = 1708387200000
+                    assertEquals("1708387200000", modificationDates.get(0).getValue(), 
+                        "Modification date should be Unix timestamp in milliseconds for 2024-02-20 at UTC midnight");
                     
                     return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
                 });
@@ -527,5 +531,124 @@ class CollibraIngestionServiceTest {
         assertTrue(result.isSuccess());
         verify(collibraClient).importAssets(anyList(), eq("Worksheet"));
         verify(worksheetRepository).findAllWithWorkbook();
+    }
+
+    @Test
+    void testDateConversionWithDifferentTimes() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        // Create workbooks with various times to ensure time component is stripped
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        
+        // Test 1: Early morning (00:01)
+        TableauWorkbook workbook1 = TableauWorkbook.builder()
+                .id(1L)
+                .assetId("workbook-1")
+                .name("Test Workbook 1")
+                .siteId("site-1")
+                .tableauCreatedAt(LocalDateTime.of(2024, 1, 15, 0, 1))
+                .tableauUpdatedAt(LocalDateTime.of(2024, 1, 15, 0, 1))
+                .project(project)
+                .statusFlag(StatusFlag.NEW)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+        
+        // Test 2: Late night (23:59)
+        TableauWorkbook workbook2 = TableauWorkbook.builder()
+                .id(2L)
+                .assetId("workbook-2")
+                .name("Test Workbook 2")
+                .siteId("site-1")
+                .tableauCreatedAt(LocalDateTime.of(2024, 1, 15, 23, 59))
+                .tableauUpdatedAt(LocalDateTime.of(2024, 1, 15, 23, 59))
+                .project(project)
+                .statusFlag(StatusFlag.NEW)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+
+        when(workbookRepository.findAllWithProject()).thenReturn(List.of(workbook1, workbook2));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertEquals(2, assets.size());
+                    
+                    // Both workbooks should have the same date timestamp despite different times
+                    // 2024-01-15T00:00:00Z = 1705276800000
+                    String expectedTimestamp = "1705276800000";
+                    
+                    for (CollibraAsset asset : assets) {
+                        List<CollibraAttributeValue> creationDates = asset.getAttributes().get("Document creation date");
+                        assertNotNull(creationDates);
+                        assertEquals(expectedTimestamp, creationDates.get(0).getValue(),
+                            "Date should be normalized to midnight UTC regardless of original time");
+                        
+                        List<CollibraAttributeValue> modificationDates = asset.getAttributes().get("Document modification date");
+                        assertNotNull(modificationDates);
+                        assertEquals(expectedTimestamp, modificationDates.get(0).getValue(),
+                            "Date should be normalized to midnight UTC regardless of original time");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("Workbook", 2, 2, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Workbook"));
+    }
+    
+    @Test
+    void testDateConversionWithNullDates() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        
+        // Create workbook with null dates
+        TableauWorkbook workbook = TableauWorkbook.builder()
+                .id(1L)
+                .assetId("workbook-1")
+                .name("Test Workbook")
+                .siteId("site-1")
+                .tableauCreatedAt(null)  // Null date
+                .tableauUpdatedAt(null)  // Null date
+                .project(project)
+                .statusFlag(StatusFlag.NEW)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+
+        when(workbookRepository.findAllWithProject()).thenReturn(List.of(workbook));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    
+                    // Verify that null dates are not added as attributes
+                    // When no attributes are present, getAttributes() returns null
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    if (attributes != null) {
+                        assertFalse(attributes.containsKey("Document creation date"),
+                            "Null creation date should not be added as attribute");
+                        assertFalse(attributes.containsKey("Document modification date"),
+                            "Null modification date should not be added as attribute");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("Workbook"));
     }
 }
