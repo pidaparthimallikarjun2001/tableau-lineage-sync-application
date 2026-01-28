@@ -308,19 +308,13 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapProjectToCollibraAsset(TableauProject project, Map<String, TableauProject> projectMap) {
-        String identifierName = CollibraAsset.createIdentifierName(project.getAssetId(), project.getName());
+        // Build identifier name in format: siteid > projectid > project name
+        String identifierName = CollibraAsset.createProjectIdentifierName(
+            project.getSiteId(), project.getAssetId(), project.getName());
         
+        // Only add Description attribute for Tableau Project
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         addAttribute(attributes, "Description", project.getDescription());
-        
-        // Build project URL from server URL and site content URL
-        if (project.getSite() != null) {
-            TableauSite site = project.getSite();
-            if (site.getServer() != null && site.getServer().getServerUrl() != null && site.getContentUrl() != null) {
-                String projectUrl = site.getServer().getServerUrl() + "/#/site/" + site.getContentUrl() + "/";
-                addAttribute(attributes, "URL", projectUrl);
-            }
-        }
 
         // Add relations to parent project and site
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
@@ -339,7 +333,8 @@ public class CollibraIngestionService {
             }
             
             if (parentProject != null) {
-                String parentName = parentProject.getAssetId() + " > " + parentProject.getName();
+                String parentName = CollibraAsset.createProjectIdentifierName(
+                    parentProject.getSiteId(), parentProject.getAssetId(), parentProject.getName());
                 addRelation(relations, "00000000-0000-0000-0000-120000000001:SOURCE", parentName,
                         collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
             }
@@ -440,7 +435,8 @@ public class CollibraIngestionService {
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         if (workbook.getProject() != null) {
             TableauProject project = workbook.getProject();
-            String projectName = project.getAssetId() + " > " + project.getName();
+            String projectName = CollibraAsset.createProjectIdentifierName(
+                project.getSiteId(), project.getAssetId(), project.getName());
             addRelation(relations, "relationid:SOURCE", projectName,
                     collibraConfig.getProjectDomainName(), collibraConfig.getCommunityName());
         }

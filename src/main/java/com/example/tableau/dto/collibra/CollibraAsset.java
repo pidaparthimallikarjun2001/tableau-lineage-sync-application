@@ -71,6 +71,16 @@ public class CollibraAsset {
     }
 
     /**
+     * Creates an identifier name with site context in the format: siteid > assetid > assetname
+     */
+    public static String createProjectIdentifierName(String siteId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        String safeAssetName = assetName != null ? assetName : "unnamed";
+        return safeSiteId + " > " + safeAssetId + " > " + safeAssetName;
+    }
+
+    /**
      * Creates a full name in the format: siteid>assetid>assetname (for backward compatibility)
      * @deprecated Use createIdentifierName instead
      */
