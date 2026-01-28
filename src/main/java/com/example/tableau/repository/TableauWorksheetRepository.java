@@ -41,5 +41,15 @@ public interface TableauWorksheetRepository extends JpaRepository<TableauWorkshe
     @Query("SELECT w FROM TableauWorksheet w WHERE w.siteId = :siteId AND w.statusFlag != 'DELETED'")
     List<TableauWorksheet> findAllActiveBySiteId(@Param("siteId") String siteId);
 
+    /**
+     * Find all worksheets with their workbook relationship eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @return List of all worksheets with workbook relationships loaded
+     */
+    @Query("SELECT DISTINCT w FROM TableauWorksheet w LEFT JOIN FETCH w.workbook")
+    List<TableauWorksheet> findAllWithWorkbook();
+
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
 }

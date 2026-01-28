@@ -62,22 +62,46 @@ public class CollibraAsset {
     }
 
     /**
-     * Creates an identifier name for server-level assets.
+     * Creates an identifier name for server-level assets in the format: serverid
      */
     public static String createServerIdentifierName(String assetId, String assetName) {
         String safeAssetId = assetId != null ? assetId : "unknown";
-        String safeAssetName = assetName != null ? assetName : "unnamed";
-        return safeAssetId + " > " + safeAssetName;
+        return safeAssetId;
     }
 
     /**
-     * Creates an identifier name with site context in the format: siteid > assetid > assetname
+     * Creates an identifier name for site assets in the format: siteid
+     */
+    public static String createSiteIdentifierName(String siteId, String siteName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        return safeSiteId;
+    }
+
+    /**
+     * Creates an identifier name for project assets in the format: siteid > projectid
      */
     public static String createProjectIdentifierName(String siteId, String assetId, String assetName) {
         String safeSiteId = siteId != null ? siteId : "unknown";
         String safeAssetId = assetId != null ? assetId : "unknown";
-        String safeAssetName = assetName != null ? assetName : "unnamed";
-        return safeSiteId + " > " + safeAssetId + " > " + safeAssetName;
+        return safeSiteId + " > " + safeAssetId;
+    }
+
+    /**
+     * Creates an identifier name for workbook assets in the format: siteid > workbookid
+     */
+    public static String createWorkbookIdentifierName(String siteId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        return safeSiteId + " > " + safeAssetId;
+    }
+
+    /**
+     * Creates an identifier name for worksheet assets in the format: siteid > worksheetid
+     */
+    public static String createWorksheetIdentifierName(String siteId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        return safeSiteId + " > " + safeAssetId;
     }
 
     /**
