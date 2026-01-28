@@ -226,6 +226,65 @@ public class CollibraRestClient {
     }
 
     /**
+     * Find an asset by its identifier name, domain, and community.
+     * Returns the asset UUID if found, or empty if not found.
+     */
+    public Mono<String> findAssetByIdentifier(String identifierName, String domainName, String communityName) {
+        if (!isConfigured()) {
+            return Mono.empty();
+        }
+
+        // First find the community ID
+        return findCommunity(communityName)
+                .flatMap(communityResponse -> {
+                    if (!communityResponse.has("results") || communityResponse.get("results").size() == 0) {
+                        log.debug("Community '{}' not found", communityName);
+                        return Mono.empty();
+                    }
+                    String communityId = communityResponse.get("results").get(0).path("id").asText();
+                    
+                    // Then find the domain ID
+                    return findDomain(domainName, communityId)
+                            .flatMap(domainResponse -> {
+                                if (!domainResponse.has("results") || domainResponse.get("results").size() == 0) {
+                                    log.debug("Domain '{}' not found in community '{}'", domainName, communityName);
+                                    return Mono.empty();
+                                }
+                                String domainId = domainResponse.get("results").get(0).path("id").asText();
+                                
+                                // Finally search for the asset by name and domain
+                                return webClient.get()
+                                        .uri(uriBuilder -> uriBuilder
+                                                .path("/rest/2.0/assets")
+                                                .queryParam("name", identifierName)
+                                                .queryParam("nameMatchMode", "EXACT")
+                                                .queryParam("domainId", domainId)
+                                                .queryParam("limit", 1)
+                                                .build())
+                                        .retrieve()
+                                        .bodyToMono(JsonNode.class)
+                                        .flatMap(response -> {
+                                            if (response.has("results") && response.get("results").isArray() && 
+                                                response.get("results").size() > 0) {
+                                                String assetId = response.get("results").get(0).path("id").asText();
+                                                log.debug("Found asset with identifier '{}' in domain '{}': {}", 
+                                                        identifierName, domainName, assetId);
+                                                return Mono.just(assetId);
+                                            }
+                                            log.debug("No asset found with identifier '{}' in domain '{}'", 
+                                                    identifierName, domainName);
+                                            return Mono.empty();
+                                        });
+                            });
+                })
+                .onErrorResume(e -> {
+                    log.error("Failed to find asset by identifier '{}' in domain '{}', community '{}': {}", 
+                            identifierName, domainName, communityName, e.getMessage());
+                    return Mono.empty();
+                });
+    }
+
+    /**
      * Find a community by name.
      */
     public Mono<JsonNode> findCommunity(String communityName) {
