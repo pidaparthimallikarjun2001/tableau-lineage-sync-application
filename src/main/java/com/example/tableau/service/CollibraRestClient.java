@@ -2,7 +2,6 @@ package com.example.tableau.service;
 
 import com.example.tableau.config.CollibraApiConfig;
 import com.example.tableau.dto.collibra.CollibraAsset;
-import com.example.tableau.dto.collibra.CollibraImportPayload;
 import com.example.tableau.dto.collibra.CollibraIngestionResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -131,14 +130,8 @@ public class CollibraRestClient {
         }
 
         try {
-            CollibraImportPayload payload = CollibraImportPayload.builder()
-                    .assets(assets)
-                    .sendNotification(false)
-                    .continueOnError(true)
-                    .existingAssetPolicy("UPDATE")
-                    .build();
-
-            String jsonPayload = objectMapper.writeValueAsString(payload);
+            // Collibra Import API expects an array of assets at the root level, not wrapped in an object
+            String jsonPayload = objectMapper.writeValueAsString(assets);
             log.debug("Collibra import payload: {}", jsonPayload);
 
             // Create multipart request with JSON file
@@ -151,6 +144,8 @@ public class CollibraRestClient {
             });
             body.add("sendNotification", "false");
             body.add("continueOnError", "true");
+            body.add("existingAssetPolicy", "UPDATE");
+            body.add("existingRelationPolicy", "UPDATE");
 
             return webClient.post()
                     .uri(config.getImportApiUrl())
