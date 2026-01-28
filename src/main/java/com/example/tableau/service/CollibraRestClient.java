@@ -144,6 +144,8 @@ public class CollibraRestClient {
             });
             body.add("sendNotification", "false");
             body.add("continueOnError", "true");
+            body.add("existingAssetPolicy", "UPDATE");
+            body.add("existingRelationPolicy", "UPDATE");
 
             return webClient.post()
                     .uri(config.getImportApiUrl())
