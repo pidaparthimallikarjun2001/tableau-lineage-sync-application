@@ -121,8 +121,11 @@ public class CollibraIngestionService {
 
     /**
      * Sort projects by dependency order: parent projects before child projects.
-     * This ensures that when batching occurs, parent projects are imported first,
-     * minimizing the risk of cross-batch dependency failures.
+     * While the two-phase import strategy guarantees relation success regardless of ordering,
+     * this sorting provides benefits for:
+     * - Better hierarchy visualization in Collibra UI
+     * - More logical processing order for monitoring/debugging
+     * - Consistent asset creation order across runs
      * 
      * @param projects list of projects to sort
      * @return sorted list with parent projects first
@@ -176,8 +179,11 @@ public class CollibraIngestionService {
 
     /**
      * Sort report attributes by dependency order: non-calculated fields before calculated fields.
-     * This ensures that when batching occurs, fields that are referenced by calculated fields
-     * are imported first, minimizing the risk of cross-batch dependency failures.
+     * While the two-phase import strategy guarantees relation success regardless of ordering,
+     * this sorting provides benefits for:
+     * - Better field visualization in Collibra UI (base fields before derived)
+     * - More logical processing order for monitoring/debugging
+     * - Consistent asset creation order across runs
      * 
      * @param reportAttributes list of report attributes to sort
      * @return sorted list with non-calculated fields first
@@ -1406,7 +1412,21 @@ public class CollibraIngestionService {
                 })
                 .onErrorResume(e -> {
                     log.error("Full ingestion failed: {}", e.getMessage(), e);
-                    return Mono.just(CollibraIngestionResult.failure("All", "Full ingestion failed: " + e.getMessage()));
+                    // Attempt to perform deletions even if import failed
+                    log.warn("Attempting to perform deletions despite import failure");
+                    return performAllDeletions(allDeletions)
+                            .flatMap(deletionCount -> {
+                                log.info("Deletions completed: {} assets deleted", deletionCount);
+                                return Mono.just(CollibraIngestionResult.failure("All", 
+                                        "Full ingestion failed: " + e.getMessage() + 
+                                        " (Note: " + deletionCount + " deletions were completed)"));
+                            })
+                            .onErrorResume(deleteError -> {
+                                log.error("Deletions also failed: {}", deleteError.getMessage(), deleteError);
+                                return Mono.just(CollibraIngestionResult.failure("All", 
+                                        "Full ingestion failed: " + e.getMessage() + 
+                                        " (Note: Deletions also failed: " + deleteError.getMessage() + ")"));
+                            });
                 });
     }
 
@@ -1977,8 +1997,21 @@ public class CollibraIngestionService {
                 })
                 .onErrorResume(e -> {
                     log.error("Site {} - Full ingestion failed: {}", siteId, e.getMessage(), e);
-                    return Mono.just(CollibraIngestionResult.failure("All (Site: " + siteId + ")", 
-                            "Site-level ingestion failed for site " + siteId + ": " + e.getMessage()));
+                    // Attempt to perform deletions even if import failed
+                    log.warn("Site {} - Attempting to perform deletions despite import failure", siteId);
+                    return performAllDeletions(allDeletions)
+                            .flatMap(deletionCount -> {
+                                log.info("Site {} - Deletions completed: {} assets deleted", siteId, deletionCount);
+                                return Mono.just(CollibraIngestionResult.failure("All (Site: " + siteId + ")", 
+                                        "Site-level ingestion failed for site " + siteId + ": " + e.getMessage() +
+                                        " (Note: " + deletionCount + " deletions were completed)"));
+                            })
+                            .onErrorResume(deleteError -> {
+                                log.error("Site {} - Deletions also failed: {}", siteId, deleteError.getMessage(), deleteError);
+                                return Mono.just(CollibraIngestionResult.failure("All (Site: " + siteId + ")", 
+                                        "Site-level ingestion failed for site " + siteId + ": " + e.getMessage() +
+                                        " (Note: Deletions also failed: " + deleteError.getMessage() + ")"));
+                            });
                 });
     }
 

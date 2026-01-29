@@ -1209,12 +1209,13 @@ class CollibraIngestionServiceTest {
     @Test
     void testIngestAllBySiteToCollibra_Success() {
         when(collibraClient.isConfigured()).thenReturn(true);
-        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
-        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
-        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
-        when(collibraConfig.getWorksheetDomainName()).thenReturn("Tableau Worksheets");
-        when(collibraConfig.getDatasourceDomainName()).thenReturn("Tableau DataSources");
-        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+        // These stubs might not be called with empty lists, so use lenient()
+        lenient().when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        lenient().when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+        lenient().when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        lenient().when(collibraConfig.getWorksheetDomainName()).thenReturn("Tableau Worksheets");
+        lenient().when(collibraConfig.getDatasourceDomainName()).thenReturn("Tableau DataSources");
+        lenient().when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
 
         // Mock empty returns for all repositories
         when(projectRepository.findAllBySiteIdWithSiteAndServer("site-1")).thenReturn(Collections.emptyList());

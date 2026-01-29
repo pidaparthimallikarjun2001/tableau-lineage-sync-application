@@ -222,8 +222,10 @@ public class CollibraRestClient {
                                 return CollibraIngestionResult.builder()
                                         .assetType(assetType)
                                         .totalProcessed(phase2Result.getTotalProcessed())
-                                        .assetsCreated(phase2Result.getAssetsCreated())
-                                        .assetsUpdated(phase2Result.getAssetsUpdated())
+                                        // Use Phase 1's created count (assets created in Phase 1)
+                                        // Phase 2 updates those assets, so assetsUpdated = assetsCreated
+                                        .assetsCreated(phase1Result.getAssetsCreated())
+                                        .assetsUpdated(phase2Result.getTotalProcessed())
                                         .assetsDeleted(0)
                                         .assetsSkipped(0)
                                         .success(true)
