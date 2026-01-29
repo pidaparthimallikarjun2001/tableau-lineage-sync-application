@@ -63,4 +63,15 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
     Optional<TableauProject> findByIdWithSiteAndServer(@Param("id") Long id);
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
+
+    /**
+     * Find all projects for a specific site with their site and server relationships eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return List of projects for the site with site and server relationships loaded
+     */
+    @Query("SELECT DISTINCT p FROM TableauProject p LEFT JOIN FETCH p.site s LEFT JOIN FETCH s.server WHERE p.siteId = :siteId")
+    List<TableauProject> findAllBySiteIdWithSiteAndServer(@Param("siteId") String siteId);
 }

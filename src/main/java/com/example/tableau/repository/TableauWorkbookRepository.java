@@ -52,4 +52,15 @@ public interface TableauWorkbookRepository extends JpaRepository<TableauWorkbook
     List<TableauWorkbook> findAllWithProject();
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
+
+    /**
+     * Find all workbooks for a specific site with their project relationship eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return List of workbooks for the site with project relationships loaded
+     */
+    @Query("SELECT DISTINCT w FROM TableauWorkbook w LEFT JOIN FETCH w.project WHERE w.siteId = :siteId")
+    List<TableauWorkbook> findAllBySiteIdWithProject(@Param("siteId") String siteId);
 }

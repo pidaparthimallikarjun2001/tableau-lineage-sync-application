@@ -907,6 +907,316 @@ public class CollibraIngestionService {
                 });
     }
 
+    // ======================== Site-Level Ingestion ========================
+
+    /**
+     * Ingest all projects for a specific site to Collibra based on status flags.
+     * This reduces load on Collibra by processing assets site by site.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for projects in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestProjectsBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauProject> projects = projectRepository.findAllBySiteIdWithSiteAndServer(siteId);
+        
+        // Create a map of projects by (assetId, siteId) to avoid N+1 queries when looking up parent projects
+        Map<String, TableauProject> projectMap = new HashMap<>();
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            projectMap.put(key, project);
+        }
+        
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauProject> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauProject project : projects) {
+            if (project.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(project);
+            } else if (project.getStatusFlag() == StatusFlag.NEW || 
+                       project.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} projects for site {} to Collibra ({} to create/update, {} to delete, {} skipped)",
+                projects.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(project -> CollibraAsset.createProjectIdentifierName(
+                    project.getSiteId(), project.getAssetId(), project.getName()))
+                .toList();
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Project")
+                .flatMap(result -> {
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getProjectDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
+                });
+    }
+
+    /**
+     * Ingest all workbooks for a specific site to Collibra based on status flags.
+     * This reduces load on Collibra by processing assets site by site.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for workbooks in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestWorkbooksBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorkbook> workbooks = workbookRepository.findAllBySiteIdWithProject(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorkbook> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorkbook workbook : workbooks) {
+            if (workbook.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(workbook);
+            } else if (workbook.getStatusFlag() == StatusFlag.NEW || 
+                       workbook.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorkbookToCollibraAsset(workbook));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} workbooks for site {} to Collibra ({} to create/update, {} to delete, {} skipped)",
+                workbooks.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(workbook -> CollibraAsset.createWorkbookIdentifierName(
+                    workbook.getSiteId(), workbook.getAssetId(), workbook.getName()))
+                .toList();
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Workbook")
+                .flatMap(result -> {
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getWorkbookDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
+                });
+    }
+
+    /**
+     * Ingest all worksheets for a specific site to Collibra based on status flags.
+     * This reduces load on Collibra by processing assets site by site.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for worksheets in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestWorksheetsBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorksheet> worksheets = worksheetRepository.findAllBySiteIdWithWorkbook(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorksheet> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorksheet worksheet : worksheets) {
+            if (worksheet.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(worksheet);
+            } else if (worksheet.getStatusFlag() == StatusFlag.NEW || 
+                       worksheet.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorksheetToCollibraAsset(worksheet));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} worksheets for site {} to Collibra ({} to create/update, {} to delete, {} skipped)",
+                worksheets.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
+                    worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                .toList();
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Worksheet")
+                .flatMap(result -> {
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getWorksheetDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
+                });
+    }
+
+    /**
+     * Ingest all data sources for a specific site to Collibra based on status flags.
+     * This reduces load on Collibra by processing assets site by site.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for data sources in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestDataSourcesBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauDataSource> dataSources = dataSourceRepository.findBySiteId(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauDataSource> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauDataSource dataSource : dataSources) {
+            if (dataSource.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(dataSource);
+            } else if (dataSource.getStatusFlag() == StatusFlag.NEW || 
+                       dataSource.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapDataSourceToCollibraAsset(dataSource));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} data sources for site {} to Collibra ({} to create/update, {} to delete, {} skipped)",
+                dataSources.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(dataSource -> CollibraAsset.createIdentifierName(
+                    dataSource.getAssetId(), dataSource.getName()))
+                .toList();
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "DataSource")
+                .flatMap(result -> {
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getDatasourceDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
+                });
+    }
+
+    /**
+     * Ingest all report attributes for a specific site to Collibra based on status flags.
+     * This reduces load on Collibra by processing assets site by site.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for report attributes in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestReportAttributesBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteId(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<ReportAttribute> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (ReportAttribute attr : reportAttributes) {
+            if (attr.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(attr);
+            } else if (attr.getStatusFlag() == StatusFlag.NEW || 
+                       attr.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapReportAttributeToCollibraAsset(attr));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} report attributes for site {} to Collibra ({} to create/update, {} to delete, {} skipped)",
+                reportAttributes.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Build list of identifiers for assets to delete
+        List<String> identifiersToDelete = toDelete.stream()
+                .map(attr -> CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName()))
+                .toList();
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
+                .flatMap(result -> {
+                    return deleteAssetsFromCollibra(identifiersToDelete, 
+                            collibraConfig.getReportAttributeDomainName(), 
+                            collibraConfig.getCommunityName())
+                            .map(deletedCount -> {
+                                result.setAssetsDeleted(deletedCount);
+                                result.setAssetsSkipped(finalSkipped);
+                                return result;
+                            });
+                });
+    }
+
+    /**
+     * Ingest all assets for a specific site to Collibra in the correct order.
+     * This reduces load on Collibra by processing assets site by site instead of all at once.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return ingestion result for all assets in the specified site
+     */
+    public Mono<CollibraIngestionResult> ingestAllBySiteToCollibra(String siteId) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        log.info("Starting site-level ingestion of all assets for site {} to Collibra", siteId);
+
+        return ingestProjectsBySiteToCollibra(siteId)
+                .flatMap(projectResult -> {
+                    log.info("Site {} - Project ingestion complete: {}", siteId, projectResult);
+                    return ingestWorkbooksBySiteToCollibra(siteId);
+                })
+                .flatMap(workbookResult -> {
+                    log.info("Site {} - Workbook ingestion complete: {}", siteId, workbookResult);
+                    return ingestWorksheetsBySiteToCollibra(siteId);
+                })
+                .flatMap(worksheetResult -> {
+                    log.info("Site {} - Worksheet ingestion complete: {}", siteId, worksheetResult);
+                    return ingestDataSourcesBySiteToCollibra(siteId);
+                })
+                .flatMap(dataSourceResult -> {
+                    log.info("Site {} - DataSource ingestion complete: {}", siteId, dataSourceResult);
+                    return ingestReportAttributesBySiteToCollibra(siteId);
+                })
+                .map(reportAttrResult -> {
+                    log.info("Site {} - ReportAttribute ingestion complete: {}", siteId, reportAttrResult);
+                    return CollibraIngestionResult.builder()
+                            .assetType("All (Site: " + siteId + ")")
+                            .success(true)
+                            .message("Site-level ingestion to Collibra completed successfully for site: " + siteId)
+                            .build();
+                })
+                .onErrorResume(e -> {
+                    log.error("Site {} - Full ingestion failed: {}", siteId, e.getMessage(), e);
+                    return Mono.just(CollibraIngestionResult.failure("All (Site: " + siteId + ")", 
+                            "Site-level ingestion failed for site " + siteId + ": " + e.getMessage()));
+                });
+    }
+
     // ======================== Helper Methods ========================
 
     /**

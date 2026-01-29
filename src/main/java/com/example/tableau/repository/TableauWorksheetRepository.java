@@ -52,4 +52,15 @@ public interface TableauWorksheetRepository extends JpaRepository<TableauWorkshe
     List<TableauWorksheet> findAllWithWorkbook();
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
+
+    /**
+     * Find all worksheets for a specific site with their workbook relationship eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return List of worksheets for the site with workbook relationships loaded
+     */
+    @Query("SELECT DISTINCT w FROM TableauWorksheet w LEFT JOIN FETCH w.workbook WHERE w.siteId = :siteId")
+    List<TableauWorksheet> findAllBySiteIdWithWorkbook(@Param("siteId") String siteId);
 }

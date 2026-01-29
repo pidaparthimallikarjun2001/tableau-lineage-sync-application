@@ -787,4 +787,247 @@ class CollibraIngestionServiceTest {
         verify(collibraClient).findAssetByIdentifier(eq(identifierToDelete), eq("Tableau Workbooks"), eq("Tableau Technology"));
         verify(collibraClient).deleteAsset("uuid-789");
     }
+
+    // ======================== Site-Level Ingestion Tests ========================
+
+    @Test
+    void testIngestProjectsBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestProjectsBySiteToCollibra_EmptyList() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(projectRepository.findAllBySiteIdWithSiteAndServer("site-1")).thenReturn(Collections.emptyList());
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 0, 0, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(0, result.getTotalProcessed());
+    }
+
+    @Test
+    void testIngestProjectsBySiteToCollibra_WithNewProject() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+        when(collibraConfig.getSiteDomainName()).thenReturn("Tableau Sites");
+
+        TableauServer server = createTestServer("server-1", "Test Server", StatusFlag.ACTIVE);
+        TableauSite site = createTestSite("site-1", "Test Site", "testsite", server, StatusFlag.ACTIVE);
+        TableauProject project = createTestProjectWithSite("proj-1", "Test Project", "site-1", null, site, StatusFlag.NEW);
+
+        when(projectRepository.findAllBySiteIdWithSiteAndServer("site-1")).thenReturn(List.of(project));
+        when(collibraClient.importAssets(anyList(), eq("Project")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Project", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestProjectsBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        verify(projectRepository).findAllBySiteIdWithSiteAndServer("site-1");
+    }
+
+    @Test
+    void testIngestWorkbooksBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestWorkbooksBySiteToCollibra_WithNewWorkbook() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        TableauWorkbook workbook = createTestWorkbook("workbook-1", "Test Workbook", "site-1", project, StatusFlag.NEW);
+
+        when(workbookRepository.findAllBySiteIdWithProject("site-1")).thenReturn(List.of(workbook));
+        when(collibraClient.importAssets(anyList(), eq("Workbook")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Workbook", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        verify(workbookRepository).findAllBySiteIdWithProject("site-1");
+    }
+
+    @Test
+    void testIngestWorksheetsBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestWorksheetsBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestWorksheetsBySiteToCollibra_WithNewWorksheet() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getWorksheetDomainName()).thenReturn("Tableau Worksheets");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+
+        TableauProject project = createTestProject("proj-1", "Test Project", "site-1", null, StatusFlag.ACTIVE);
+        TableauWorkbook workbook = createTestWorkbook("workbook-1", "Test Workbook", "site-1", project, StatusFlag.ACTIVE);
+        TableauWorksheet worksheet = createTestWorksheet("worksheet-1", "Test Worksheet", "site-1", workbook, StatusFlag.NEW);
+
+        when(worksheetRepository.findAllBySiteIdWithWorkbook("site-1")).thenReturn(List.of(worksheet));
+        when(collibraClient.importAssets(anyList(), eq("Worksheet")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Worksheet", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestWorksheetsBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        verify(worksheetRepository).findAllBySiteIdWithWorkbook("site-1");
+    }
+
+    @Test
+    void testIngestDataSourcesBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestDataSourcesBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestDataSourcesBySiteToCollibra_WithNewDataSource() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getDatasourceDomainName()).thenReturn("Tableau DataSources");
+
+        TableauDataSource dataSource = createTestDataSource("ds-1", "Test DataSource", "site-1", StatusFlag.NEW);
+
+        when(dataSourceRepository.findBySiteId("site-1")).thenReturn(List.of(dataSource));
+        when(collibraClient.importAssets(anyList(), eq("DataSource")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("DataSource", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestDataSourcesBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        verify(dataSourceRepository).findBySiteId("site-1");
+    }
+
+    @Test
+    void testIngestReportAttributesBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributesBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestReportAttributesBySiteToCollibra_WithNewReportAttribute() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-1", "Test Attribute", "site-1", StatusFlag.NEW);
+
+        when(reportAttributeRepository.findBySiteId("site-1")).thenReturn(List.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributesBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        verify(reportAttributeRepository).findBySiteId("site-1");
+    }
+
+    @Test
+    void testIngestAllBySiteToCollibra_NotConfigured() {
+        when(collibraClient.isConfigured()).thenReturn(false);
+
+        CollibraIngestionResult result = ingestionService.ingestAllBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertFalse(result.isSuccess());
+        assertTrue(result.getMessage().contains("not configured"));
+    }
+
+    @Test
+    void testIngestAllBySiteToCollibra_Success() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getProjectDomainName()).thenReturn("Tableau Projects");
+        when(collibraConfig.getWorkbookDomainName()).thenReturn("Tableau Workbooks");
+        when(collibraConfig.getWorksheetDomainName()).thenReturn("Tableau Worksheets");
+        when(collibraConfig.getDatasourceDomainName()).thenReturn("Tableau DataSources");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Mock empty returns for all repositories
+        when(projectRepository.findAllBySiteIdWithSiteAndServer("site-1")).thenReturn(Collections.emptyList());
+        when(workbookRepository.findAllBySiteIdWithProject("site-1")).thenReturn(Collections.emptyList());
+        when(worksheetRepository.findAllBySiteIdWithWorkbook("site-1")).thenReturn(Collections.emptyList());
+        when(dataSourceRepository.findBySiteId("site-1")).thenReturn(Collections.emptyList());
+        when(reportAttributeRepository.findBySiteId("site-1")).thenReturn(Collections.emptyList());
+
+        // Mock import responses
+        when(collibraClient.importAssets(anyList(), anyString()))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("Any", 0, 0, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestAllBySiteToCollibra("site-1").block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals("All (Site: site-1)", result.getAssetType());
+        assertTrue(result.getMessage().contains("site-1"));
+    }
+
+    private TableauDataSource createTestDataSource(String assetId, String name, String siteId, StatusFlag statusFlag) {
+        return TableauDataSource.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .siteId(siteId)
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
+
+    private ReportAttribute createTestReportAttribute(String assetId, String name, String siteId, StatusFlag statusFlag) {
+        return ReportAttribute.builder()
+                .id(1L)
+                .assetId(assetId)
+                .name(name)
+                .siteId(siteId)
+                .statusFlag(statusFlag)
+                .createdTimestamp(LocalDateTime.now())
+                .lastUpdatedTimestamp(LocalDateTime.now())
+                .build();
+    }
 }
