@@ -880,7 +880,9 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAll();
+        // Use findAllWithRelations() to eagerly fetch worksheet and dataSource relationships
+        // This prevents LazyInitializationException when mapping to Collibra assets
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAllWithRelations();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -902,7 +904,7 @@ public class CollibraIngestionService {
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
                 .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
-                    attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                    attr.getSiteId(), attr.getWorksheetId(), attr.getAssetId(), attr.getName()))
                 .toList();
 
         final int finalSkipped = skipped;
@@ -928,7 +930,9 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        return reportAttributeRepository.findById(reportAttributeId)
+        // Use findByIdWithRelations to eagerly fetch worksheet and dataSource relationships
+        // This prevents LazyInitializationException when mapping to Collibra assets
+        return reportAttributeRepository.findByIdWithRelations(reportAttributeId)
                 .map(attr -> {
                     CollibraAsset asset = mapReportAttributeToCollibraAsset(attr);
                     return collibraClient.importAssets(List.of(asset), "ReportAttribute");
@@ -938,7 +942,7 @@ public class CollibraIngestionService {
 
     private CollibraAsset mapReportAttributeToCollibraAsset(ReportAttribute attr) {
         String identifierName = CollibraAsset.createReportAttributeIdentifierName(
-            attr.getSiteId(), attr.getAssetId(), attr.getName());
+            attr.getSiteId(), attr.getWorksheetId(), attr.getAssetId(), attr.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         // Only include the three required attributes as specified in the requirement
@@ -980,7 +984,7 @@ public class CollibraIngestionService {
                     List<ReportAttribute> upstreamAttrs = reportAttributeRepository.findByAssetIdIn(upstreamFieldIds);
                     for (ReportAttribute upstreamAttr : upstreamAttrs) {
                         String upstreamIdentifier = CollibraAsset.createReportAttributeIdentifierName(
-                            upstreamAttr.getSiteId(), upstreamAttr.getAssetId(), upstreamAttr.getName());
+                            upstreamAttr.getSiteId(), upstreamAttr.getWorksheetId(), upstreamAttr.getAssetId(), upstreamAttr.getName());
                         addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
                             upstreamIdentifier,
                             collibraConfig.getReportAttributeDomainName(), 
@@ -1315,7 +1319,9 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAll();
+        // Use findAllWithRelations to eagerly fetch worksheet and dataSource relationships
+        // This prevents LazyInitializationException when mapping to Collibra assets
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAllWithRelations();
         
         // Sort report attributes by dependency: non-calculated fields before calculated fields
         reportAttributes = sortReportAttributesByDependency(reportAttributes);
@@ -1342,7 +1348,7 @@ public class CollibraIngestionService {
         if (!toDelete.isEmpty()) {
             List<String> identifiersToDelete = toDelete.stream()
                     .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
-                        attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                        attr.getSiteId(), attr.getWorksheetId(), attr.getAssetId(), attr.getName()))
                     .toList();
             deletionList.add(new DeletionInfo(identifiersToDelete, 
                     collibraConfig.getReportAttributeDomainName(), 
@@ -1678,7 +1684,7 @@ public class CollibraIngestionService {
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
                 .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
-                    attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                    attr.getSiteId(), attr.getWorksheetId(), attr.getAssetId(), attr.getName()))
                 .toList();
 
         final int finalSkipped = skipped;
@@ -1930,7 +1936,7 @@ public class CollibraIngestionService {
         if (!toDelete.isEmpty()) {
             List<String> identifiersToDelete = toDelete.stream()
                     .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
-                        attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                        attr.getSiteId(), attr.getWorksheetId(), attr.getAssetId(), attr.getName()))
                     .toList();
             deletionList.add(new DeletionInfo(identifiersToDelete, 
                     collibraConfig.getReportAttributeDomainName(), 

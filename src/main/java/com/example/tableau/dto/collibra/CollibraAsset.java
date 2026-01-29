@@ -105,8 +105,28 @@ public class CollibraAsset {
     }
 
     /**
-     * Creates an identifier name for report attribute assets in the format: siteid > assetid
+     * Creates an identifier name for report attribute assets in the format: siteid > worksheetid > assetid
+     * The worksheetId is required because the same field (assetId) can appear in multiple worksheets,
+     * so the identifier must include worksheetId to ensure uniqueness.
+     * 
+     * @param siteId the site ID
+     * @param worksheetId the worksheet ID
+     * @param assetId the report attribute asset ID
+     * @param assetName the asset name (reserved for future use, not currently used in identifier)
+     * @return the identifier name
      */
+    public static String createReportAttributeIdentifierName(String siteId, String worksheetId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeWorksheetId = worksheetId != null ? worksheetId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        return safeSiteId + " > " + safeWorksheetId + " > " + safeAssetId;
+    }
+
+    /**
+     * @deprecated Use createReportAttributeIdentifierName(siteId, worksheetId, assetId, assetName) instead.
+     * This method is kept for backward compatibility but produces non-unique identifiers.
+     */
+    @Deprecated
     public static String createReportAttributeIdentifierName(String siteId, String assetId, String assetName) {
         String safeSiteId = siteId != null ? siteId : "unknown";
         String safeAssetId = assetId != null ? assetId : "unknown";

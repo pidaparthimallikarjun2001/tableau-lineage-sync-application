@@ -58,5 +58,26 @@ public interface ReportAttributeRepository extends JpaRepository<ReportAttribute
     @Query("SELECT DISTINCT r FROM ReportAttribute r LEFT JOIN FETCH r.worksheet LEFT JOIN FETCH r.dataSource WHERE r.siteId = :siteId")
     List<ReportAttribute> findBySiteIdWithRelations(@Param("siteId") String siteId);
 
+    /**
+     * Find all report attributes with their worksheet and dataSource relationships eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @return List of all report attributes with worksheet and dataSource relationships loaded
+     */
+    @Query("SELECT DISTINCT r FROM ReportAttribute r LEFT JOIN FETCH r.worksheet LEFT JOIN FETCH r.dataSource")
+    List<ReportAttribute> findAllWithRelations();
+
+    /**
+     * Find a report attribute by ID with its worksheet and dataSource relationships eagerly loaded.
+     * This method avoids lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param id the database ID of the report attribute
+     * @return Optional containing the report attribute with relationships loaded, or empty if not found
+     */
+    @Query("SELECT r FROM ReportAttribute r LEFT JOIN FETCH r.worksheet LEFT JOIN FETCH r.dataSource WHERE r.id = :id")
+    Optional<ReportAttribute> findByIdWithRelations(@Param("id") Long id);
+
     boolean existsByAssetIdAndWorksheetIdAndSiteId(String assetId, String worksheetId, String siteId);
 }
