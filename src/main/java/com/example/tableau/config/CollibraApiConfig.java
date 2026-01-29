@@ -65,6 +65,9 @@ public class CollibraApiConfig {
     @Value("${collibra.read.timeout:60000}")
     private int readTimeout;
 
+    @Value("${collibra.batch.size:1000}")
+    private int batchSize;
+
     public String getBaseUrl() {
         return baseUrl;
     }
@@ -135,6 +138,10 @@ public class CollibraApiConfig {
 
     public int getReadTimeout() {
         return readTimeout;
+    }
+
+    public int getBatchSize() {
+        return batchSize;
     }
 
     /**
