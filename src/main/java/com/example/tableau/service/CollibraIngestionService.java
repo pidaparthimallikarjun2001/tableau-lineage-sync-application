@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -1368,6 +1369,6 @@ public class CollibraIngestionService {
         if (fieldRole == null || fieldRole.isEmpty()) {
             return fieldRole;
         }
-        return fieldRole.substring(0, 1).toUpperCase() + fieldRole.substring(1).toLowerCase();
+        return fieldRole.substring(0, 1).toUpperCase(Locale.ROOT) + fieldRole.substring(1).toLowerCase(Locale.ROOT);
     }
 }

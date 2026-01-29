@@ -1038,6 +1038,164 @@ class CollibraIngestionServiceTest {
     }
 
     @Test
+    void testIngestReportAttributeToCollibra_CapitalizesFieldRole_Lowercase() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with lowercase
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-3", "Lowercase Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("measure");  // lowercase
+
+        when(reportAttributeRepository.findById(3L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        String roleValue = attributes.get("Role in Report").get(0).getValue();
+                        assertEquals("Measure", roleValue, 
+                            "lowercase 'measure' should be capitalized to Measure");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(3L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void testIngestReportAttributeToCollibra_CapitalizesFieldRole_MixedCase() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with mixed case
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-4", "Mixed Case Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("DiMeNsIoN");  // mixed case
+
+        when(reportAttributeRepository.findById(4L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        String roleValue = attributes.get("Role in Report").get(0).getValue();
+                        assertEquals("Dimension", roleValue, 
+                            "mixed case 'DiMeNsIoN' should be capitalized to Dimension");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(4L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void testIngestReportAttributeToCollibra_HandlesNullFieldRole() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with null field role
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-5", "Null Role Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole(null);  // null
+
+        when(reportAttributeRepository.findById(5L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    // "Role in Report" attribute should not be added when fieldRole is null
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        fail("Role in Report should not be present when fieldRole is null");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(5L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void testIngestReportAttributeToCollibra_HandlesEmptyFieldRole() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with empty field role
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-6", "Empty Role Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("");  // empty
+
+        when(reportAttributeRepository.findById(6L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    // "Role in Report" attribute should not be added when fieldRole is empty
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        fail("Role in Report should not be present when fieldRole is empty");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(6L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
+    void testIngestReportAttributeToCollibra_HandlesSingleCharacter() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with single character
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-7", "Single Char Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("m");  // single character
+
+        when(reportAttributeRepository.findById(7L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        String roleValue = attributes.get("Role in Report").get(0).getValue();
+                        assertEquals("M", roleValue, 
+                            "single character 'm' should be capitalized to M");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(7L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
     void testIngestAllBySiteToCollibra_NotConfigured() {
         when(collibraClient.isConfigured()).thenReturn(false);
 
