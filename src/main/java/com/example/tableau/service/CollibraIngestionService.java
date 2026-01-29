@@ -77,6 +77,46 @@ public class CollibraIngestionService {
         return collibraClient.testConnection();
     }
 
+    // ======================== Helper Classes ========================
+
+    /**
+     * Helper class to store deletion information for deferred deletion.
+     * Used when ingesting all assets to defer deletions until after all imports complete.
+     */
+    private static class DeletionInfo {
+        final List<String> identifierNames;
+        final String domainName;
+        final String communityName;
+
+        DeletionInfo(List<String> identifierNames, String domainName, String communityName) {
+            this.identifierNames = identifierNames;
+            this.domainName = domainName;
+            this.communityName = communityName;
+        }
+    }
+
+    /**
+     * Perform all accumulated deletions.
+     * Returns the total count of successfully deleted assets.
+     */
+    private Mono<Integer> performAllDeletions(List<DeletionInfo> deletions) {
+        if (deletions.isEmpty()) {
+            return Mono.just(0);
+        }
+
+        log.info("Starting deletion of {} asset groups", deletions.size());
+        Mono<Integer> result = Mono.just(0);
+        
+        for (DeletionInfo deletion : deletions) {
+            result = result.flatMap(count -> 
+                deleteAssetsFromCollibra(deletion.identifierNames, deletion.domainName, deletion.communityName)
+                    .map(deletedCount -> count + deletedCount)
+            );
+        }
+        
+        return result;
+    }
+
     // ======================== Server Ingestion ========================
 
     /**
@@ -885,6 +925,341 @@ public class CollibraIngestionService {
     // ======================== Bulk Ingestion ========================
 
     /**
+     * Ingest servers without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestServersWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauServer> servers = serverRepository.findAll();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauServer> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauServer server : servers) {
+            if (server.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(server);
+            } else if (server.getStatusFlag() == StatusFlag.NEW || 
+                       server.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapServerToCollibraAsset(server));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} servers to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                servers.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(server -> CollibraAsset.createServerIdentifierName(server.getAssetId(), server.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getServerDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Server")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest sites without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestSitesWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauSite> sites = siteRepository.findAllWithServer();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauSite> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauSite site : sites) {
+            if (site.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(site);
+            } else if (site.getStatusFlag() == StatusFlag.NEW || 
+                       site.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapSiteToCollibraAsset(site));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} sites to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                sites.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(site -> CollibraAsset.createSiteIdentifierName(site.getAssetId(), site.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getSiteDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Site")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest projects without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestProjectsWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauProject> projects = projectRepository.findAllWithSiteAndServer();
+        
+        // Build a map of projects for efficient parent lookup
+        Map<String, TableauProject> projectMap = new HashMap<>();
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            projectMap.put(key, project);
+        }
+        
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauProject> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauProject project : projects) {
+            if (project.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(project);
+            } else if (project.getStatusFlag() == StatusFlag.NEW || 
+                       project.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} projects to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                projects.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(project -> CollibraAsset.createProjectIdentifierName(
+                        project.getSiteId(), project.getAssetId(), project.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getProjectDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Project")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest workbooks without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestWorkbooksWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorkbook> workbooks = workbookRepository.findAllWithProject();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorkbook> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorkbook workbook : workbooks) {
+            if (workbook.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(workbook);
+            } else if (workbook.getStatusFlag() == StatusFlag.NEW || 
+                       workbook.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorkbookToCollibraAsset(workbook));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} workbooks to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                workbooks.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(workbook -> CollibraAsset.createWorkbookIdentifierName(
+                        workbook.getSiteId(), workbook.getAssetId(), workbook.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getWorkbookDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Workbook")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest worksheets without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestWorksheetsWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorksheet> worksheets = worksheetRepository.findAllWithWorkbook();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorksheet> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorksheet worksheet : worksheets) {
+            if (worksheet.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(worksheet);
+            } else if (worksheet.getStatusFlag() == StatusFlag.NEW || 
+                       worksheet.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorksheetToCollibraAsset(worksheet));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} worksheets to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                worksheets.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
+                        worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getWorksheetDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Worksheet")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest data sources without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestDataSourcesWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauDataSource> dataSources = dataSourceRepository.findAll();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauDataSource> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauDataSource dataSource : dataSources) {
+            if (dataSource.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(dataSource);
+            } else if (dataSource.getStatusFlag() == StatusFlag.NEW || 
+                       dataSource.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapDataSourceToCollibraAsset(dataSource));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} data sources to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                dataSources.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(dataSource -> CollibraAsset.createIdentifierName(
+                        dataSource.getAssetId(), dataSource.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getDatasourceDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "DataSource")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest report attributes without performing deletions (for use in bulk ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestReportAttributesWithoutDeletion(List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAll();
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<ReportAttribute> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (ReportAttribute attr : reportAttributes) {
+            if (attr.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(attr);
+            } else if (attr.getStatusFlag() == StatusFlag.NEW || 
+                       attr.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapReportAttributeToCollibraAsset(attr));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} report attributes to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                reportAttributes.size(), assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
+                        attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getReportAttributeDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
      * Ingest all asset types to Collibra in the correct order.
      */
     public Mono<CollibraIngestionResult> ingestAllToCollibra() {
@@ -893,37 +1268,47 @@ public class CollibraIngestionService {
         }
 
         log.info("Starting full ingestion of all assets to Collibra");
+        
+        // Collect all deletion identifiers across all asset types
+        List<DeletionInfo> allDeletions = new ArrayList<>();
 
-        return ingestServersToCollibra()
+        return ingestServersWithoutDeletion(allDeletions)
                 .flatMap(serverResult -> {
                     log.info("Server ingestion complete: {}", serverResult);
-                    return ingestSitesToCollibra();
+                    return ingestSitesWithoutDeletion(allDeletions);
                 })
                 .flatMap(siteResult -> {
                     log.info("Site ingestion complete: {}", siteResult);
-                    return ingestProjectsToCollibra();
+                    return ingestProjectsWithoutDeletion(allDeletions);
                 })
                 .flatMap(projectResult -> {
                     log.info("Project ingestion complete: {}", projectResult);
-                    return ingestWorkbooksToCollibra();
+                    return ingestWorkbooksWithoutDeletion(allDeletions);
                 })
                 .flatMap(workbookResult -> {
                     log.info("Workbook ingestion complete: {}", workbookResult);
-                    return ingestWorksheetsToCollibra();
+                    return ingestWorksheetsWithoutDeletion(allDeletions);
                 })
                 .flatMap(worksheetResult -> {
                     log.info("Worksheet ingestion complete: {}", worksheetResult);
-                    return ingestDataSourcesToCollibra();
+                    return ingestDataSourcesWithoutDeletion(allDeletions);
                 })
                 .flatMap(dataSourceResult -> {
                     log.info("DataSource ingestion complete: {}", dataSourceResult);
-                    return ingestReportAttributesToCollibra();
+                    return ingestReportAttributesWithoutDeletion(allDeletions);
                 })
-                .map(reportAttrResult -> {
+                .flatMap(reportAttrResult -> {
                     log.info("ReportAttribute ingestion complete: {}", reportAttrResult);
+                    // Now perform all deletions after all assets have been imported
+                    log.info("Performing all deletions ({} total) after all imports", allDeletions.size());
+                    return performAllDeletions(allDeletions);
+                })
+                .map(deletionCount -> {
+                    log.info("Full ingestion to Collibra completed successfully with {} deletions", deletionCount);
                     return CollibraIngestionResult.builder()
                             .assetType("All")
                             .success(true)
+                            .assetsDeleted(deletionCount)
                             .message("Full ingestion to Collibra completed successfully")
                             .build();
                 })
@@ -1199,6 +1584,249 @@ public class CollibraIngestionService {
     }
 
     /**
+     * Ingest projects for a specific site without performing deletions (for use in bulk site ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestProjectsBySiteWithoutDeletion(String siteId, List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauProject> projects = projectRepository.findAllBySiteIdWithSiteAndServer(siteId);
+        
+        // Create a map of projects by (assetId, siteId) to avoid N+1 queries when looking up parent projects
+        Map<String, TableauProject> projectMap = new HashMap<>();
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            projectMap.put(key, project);
+        }
+        
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauProject> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauProject project : projects) {
+            if (project.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(project);
+            } else if (project.getStatusFlag() == StatusFlag.NEW || 
+                       project.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} projects for site {} to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                projects.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(project -> CollibraAsset.createProjectIdentifierName(
+                        project.getSiteId(), project.getAssetId(), project.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getProjectDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Project")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest workbooks for a specific site without performing deletions (for use in bulk site ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestWorkbooksBySiteWithoutDeletion(String siteId, List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorkbook> workbooks = workbookRepository.findAllBySiteIdWithProject(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorkbook> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorkbook workbook : workbooks) {
+            if (workbook.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(workbook);
+            } else if (workbook.getStatusFlag() == StatusFlag.NEW || 
+                       workbook.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorkbookToCollibraAsset(workbook));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} workbooks for site {} to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                workbooks.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(workbook -> CollibraAsset.createWorkbookIdentifierName(
+                        workbook.getSiteId(), workbook.getAssetId(), workbook.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getWorkbookDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Workbook")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest worksheets for a specific site without performing deletions (for use in bulk site ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestWorksheetsBySiteWithoutDeletion(String siteId, List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauWorksheet> worksheets = worksheetRepository.findAllBySiteIdWithWorkbook(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorksheet> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauWorksheet worksheet : worksheets) {
+            if (worksheet.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(worksheet);
+            } else if (worksheet.getStatusFlag() == StatusFlag.NEW || 
+                       worksheet.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapWorksheetToCollibraAsset(worksheet));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} worksheets for site {} to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                worksheets.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
+                        worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getWorksheetDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "Worksheet")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest data sources for a specific site without performing deletions (for use in bulk site ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestDataSourcesBySiteWithoutDeletion(String siteId, List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<TableauDataSource> dataSources = dataSourceRepository.findBySiteId(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauDataSource> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (TableauDataSource dataSource : dataSources) {
+            if (dataSource.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(dataSource);
+            } else if (dataSource.getStatusFlag() == StatusFlag.NEW || 
+                       dataSource.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapDataSourceToCollibraAsset(dataSource));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} data sources for site {} to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                dataSources.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(dataSource -> CollibraAsset.createIdentifierName(
+                        dataSource.getAssetId(), dataSource.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getDatasourceDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "DataSource")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
+     * Ingest report attributes for a specific site without performing deletions (for use in bulk site ingestion).
+     * Collects deletion identifiers in the provided list for deferred deletion.
+     */
+    private Mono<CollibraIngestionResult> ingestReportAttributesBySiteWithoutDeletion(String siteId, List<DeletionInfo> deletionList) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteIdWithRelations(siteId);
+        List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<ReportAttribute> toDelete = new ArrayList<>();
+        int skipped = 0;
+
+        for (ReportAttribute attr : reportAttributes) {
+            if (attr.getStatusFlag() == StatusFlag.DELETED) {
+                toDelete.add(attr);
+            } else if (attr.getStatusFlag() == StatusFlag.NEW || 
+                       attr.getStatusFlag() == StatusFlag.UPDATED) {
+                assetsToIngest.add(mapReportAttributeToCollibraAsset(attr));
+            } else {
+                skipped++;
+            }
+        }
+
+        log.info("Ingesting {} report attributes for site {} to Collibra ({} to create/update, {} to delete deferred, {} skipped)",
+                reportAttributes.size(), siteId, assetsToIngest.size(), toDelete.size(), skipped);
+
+        // Collect identifiers for deferred deletion
+        if (!toDelete.isEmpty()) {
+            List<String> identifiersToDelete = toDelete.stream()
+                    .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
+                        attr.getSiteId(), attr.getAssetId(), attr.getName()))
+                    .toList();
+            deletionList.add(new DeletionInfo(identifiersToDelete, 
+                    collibraConfig.getReportAttributeDomainName(), 
+                    collibraConfig.getCommunityName()));
+        }
+
+        final int finalSkipped = skipped;
+        return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
+                .map(result -> {
+                    result.setAssetsSkipped(finalSkipped);
+                    return result;
+                });
+    }
+
+    /**
      * Ingest all assets for a specific site to Collibra in the correct order.
      * This reduces load on Collibra by processing assets site by site instead of all at once.
      * 
@@ -1212,28 +1840,39 @@ public class CollibraIngestionService {
 
         log.info("Starting site-level ingestion of all assets for site {} to Collibra", siteId);
 
-        return ingestProjectsBySiteToCollibra(siteId)
+        // Collect all deletion identifiers across all asset types for this site
+        List<DeletionInfo> allDeletions = new ArrayList<>();
+
+        return ingestProjectsBySiteWithoutDeletion(siteId, allDeletions)
                 .flatMap(projectResult -> {
                     log.info("Site {} - Project ingestion complete: {}", siteId, projectResult);
-                    return ingestWorkbooksBySiteToCollibra(siteId);
+                    return ingestWorkbooksBySiteWithoutDeletion(siteId, allDeletions);
                 })
                 .flatMap(workbookResult -> {
                     log.info("Site {} - Workbook ingestion complete: {}", siteId, workbookResult);
-                    return ingestWorksheetsBySiteToCollibra(siteId);
+                    return ingestWorksheetsBySiteWithoutDeletion(siteId, allDeletions);
                 })
                 .flatMap(worksheetResult -> {
                     log.info("Site {} - Worksheet ingestion complete: {}", siteId, worksheetResult);
-                    return ingestDataSourcesBySiteToCollibra(siteId);
+                    return ingestDataSourcesBySiteWithoutDeletion(siteId, allDeletions);
                 })
                 .flatMap(dataSourceResult -> {
                     log.info("Site {} - DataSource ingestion complete: {}", siteId, dataSourceResult);
-                    return ingestReportAttributesBySiteToCollibra(siteId);
+                    return ingestReportAttributesBySiteWithoutDeletion(siteId, allDeletions);
                 })
-                .map(reportAttrResult -> {
+                .flatMap(reportAttrResult -> {
                     log.info("Site {} - ReportAttribute ingestion complete: {}", siteId, reportAttrResult);
+                    // Now perform all deletions after all assets have been imported
+                    log.info("Site {} - Performing all deletions ({} total) after all imports", siteId, allDeletions.size());
+                    return performAllDeletions(allDeletions);
+                })
+                .map(deletionCount -> {
+                    log.info("Site {} - Full ingestion to Collibra completed successfully with {} deletions", 
+                            siteId, deletionCount);
                     return CollibraIngestionResult.builder()
                             .assetType("All (Site: " + siteId + ")")
                             .success(true)
+                            .assetsDeleted(deletionCount)
                             .message("Site-level ingestion to Collibra completed successfully for site: " + siteId)
                             .build();
                 })
