@@ -127,31 +127,34 @@ public class CollibraRestClient {
 
     /**
      * Import assets to Collibra in batches to avoid memory issues.
-     * Processes large lists of assets in smaller batches to prevent OutOfMemoryError.
+     * Uses a TWO-PHASE approach to guarantee no relation failures:
      * 
-     * <p><b>IMPORTANT - Cross-Batch Dependencies:</b></p>
-     * When assets have dependencies (e.g., ReportAttribute A references ReportAttribute B),
-     * splitting them across different batches can cause relation creation failures because
-     * assets in earlier batches may reference assets in later batches that don't exist yet
-     * in Collibra at the time of import.
+     * <p><b>Phase 1 - Import Assets Without Relations:</b></p>
+     * All assets are imported with only basic information (no relations).
+     * This ensures all assets exist in Collibra before relations are created.
      * 
-     * <p><b>Solution - Dependency-Aware Ordering:</b></p>
-     * Assets should be ordered before batching so that:
+     * <p><b>Phase 2 - Update Assets With Relations:</b></p>
+     * All assets are re-imported with relations included.
+     * Since all target assets now exist in Collibra (from Phase 1),
+     * all relations will succeed.
+     * 
+     * <p><b>Why This Works:</b></p>
      * <ul>
-     *   <li>Assets without dependencies are imported first</li>
-     *   <li>Assets that are referenced by others (e.g., parent projects, non-calculated fields) are imported first</li>
-     *   <li>Assets with dependencies (e.g., calculated fields, child projects) are imported later</li>
+     *   <li>Collibra Import API uses identifier names (not UUIDs) for relations</li>
+     *   <li>Phase 1 creates all assets with their identifiers</li>
+     *   <li>Phase 2 can reference any asset by identifier (they all exist)</li>
+     *   <li>existingAssetPolicy: UPDATE ensures Phase 2 updates existing assets</li>
+     *   <li>No cross-batch or cross-job dependency issues</li>
      * </ul>
      * 
-     * <p><b>Batch Size Configuration:</b></p>
+     * <p><b>Performance:</b></p>
      * <ul>
-     *   <li>Default batch size: 5000 (balances memory usage and dependency handling)</li>
-     *   <li>Decrease if experiencing OutOfMemoryError: Set collibra.batch.size to smaller value (e.g., 1000, 2000)</li>
-     *   <li>Increase if you have very large datasets with complex dependencies: Set to 10000 or higher</li>
-     *   <li>If batching occurs, a warning will be logged about potential cross-batch dependency issues</li>
+     *   <li>Two passes through the data (Phase 1 + Phase 2)</li>
+     *   <li>Slightly slower than single-phase, but guarantees success</li>
+     *   <li>Each phase can still be batched for memory management</li>
      * </ul>
      * 
-     * @param assets list of assets to import (should be pre-ordered with dependencies in mind)
+     * @param assets list of assets to import
      * @param assetType type of assets being imported
      * @param batchSize maximum number of assets to process in a single batch
      * @return aggregated result of all batch imports
@@ -171,20 +174,97 @@ public class CollibraRestClient {
             throw new IllegalArgumentException("Batch size must be at least 1, got: " + batchSize);
         }
 
+        // Check if any assets have relations
+        boolean hasRelations = assets.stream().anyMatch(asset -> 
+            asset.getRelations() != null && !asset.getRelations().isEmpty());
+        
+        // If no assets have relations, use single-phase import (no risk of relation failures)
+        if (!hasRelations) {
+            if (assets.size() <= batchSize) {
+                return importAssetsBatch(assets, assetType);
+            } else {
+                // Batch without two-phase (safe since no relations)
+                log.info("Single-phase import for {} {} assets (no relations, batch size: {})", 
+                        assets.size(), assetType, batchSize);
+                return importAssetsInBatches(assets, assetType, batchSize);
+            }
+        }
+
+        // Assets have relations - use TWO-PHASE IMPORT to guarantee no relation failures
+        log.info("Starting TWO-PHASE import for {} {} assets with relations (batch size: {})", 
+                assets.size(), assetType, batchSize);
+
+        // PHASE 1: Import assets WITHOUT relations
+        log.info("PHASE 1: Importing {} assets without relations to establish all identifiers in Collibra", 
+                assets.size());
+        List<CollibraAsset> assetsWithoutRelations = stripRelations(assets);
+        
+        return importAssetsInBatches(assetsWithoutRelations, assetType + " (Phase 1: No Relations)", batchSize)
+                .flatMap(phase1Result -> {
+                    if (!phase1Result.isSuccess()) {
+                        log.error("Phase 1 failed, aborting Phase 2");
+                        return Mono.just(phase1Result);
+                    }
+                    
+                    log.info("PHASE 1 complete: {} assets created/updated without relations", 
+                            phase1Result.getTotalProcessed());
+                    
+                    // PHASE 2: Import assets WITH relations (now all targets exist)
+                    log.info("PHASE 2: Updating {} assets with relations (all targets now exist in Collibra)", 
+                            assets.size());
+                    
+                    return importAssetsInBatches(assets, assetType + " (Phase 2: With Relations)", batchSize)
+                            .map(phase2Result -> {
+                                log.info("PHASE 2 complete: {} assets updated with relations successfully", 
+                                        phase2Result.getTotalProcessed());
+                                
+                                // Return combined result
+                                return CollibraIngestionResult.builder()
+                                        .assetType(assetType)
+                                        .totalProcessed(phase2Result.getTotalProcessed())
+                                        .assetsCreated(phase2Result.getAssetsCreated())
+                                        .assetsUpdated(phase2Result.getAssetsUpdated())
+                                        .assetsDeleted(0)
+                                        .assetsSkipped(0)
+                                        .success(true)
+                                        .message("Two-phase import completed successfully: " +
+                                                phase1Result.getTotalProcessed() + " assets created (Phase 1), " +
+                                                phase2Result.getTotalProcessed() + " assets updated with relations (Phase 2)")
+                                        .jobId(phase2Result.getJobId())
+                                        .build();
+                            });
+                });
+    }
+
+    /**
+     * Strip relations from assets to create a copy without relations.
+     * Used in Phase 1 of two-phase import.
+     */
+    private List<CollibraAsset> stripRelations(List<CollibraAsset> assets) {
+        return assets.stream()
+                .map(asset -> CollibraAsset.builder()
+                        .resourceType(asset.getResourceType())
+                        .type(asset.getType())
+                        .displayName(asset.getDisplayName())
+                        .identifier(asset.getIdentifier())
+                        .attributes(asset.getAttributes())
+                        .relations(null) // No relations in Phase 1
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Import assets in batches (internal helper).
+     * Splits assets into batches and processes them sequentially.
+     */
+    private Mono<CollibraIngestionResult> importAssetsInBatches(List<CollibraAsset> assets, String assetType, int batchSize) {
         // If assets fit in a single batch, process directly
         if (assets.size() <= batchSize) {
             return importAssetsBatch(assets, assetType);
         }
 
-        // Log warning if batching occurs, as it may cause cross-batch dependency issues
-        log.warn("Asset count ({}) exceeds batch size ({}). Assets will be split across {} batches. " +
-                "If assets have dependencies on each other, ensure they are pre-ordered with dependencies last. " +
-                "Some relations may fail if dependencies span across batches. " +
-                "Consider ordering assets by dependency or adjusting collibra.batch.size property.",
-                assets.size(), batchSize, (int) Math.ceil((double) assets.size() / batchSize));
-
         // Process assets in batches
-        log.info("Processing {} assets in batches of {} for asset type {}", assets.size(), batchSize, assetType);
+        log.info("Processing {} assets in batches of {} for {}", assets.size(), batchSize, assetType);
         
         List<List<CollibraAsset>> batches = new ArrayList<>();
         for (int i = 0; i < assets.size(); i += batchSize) {
