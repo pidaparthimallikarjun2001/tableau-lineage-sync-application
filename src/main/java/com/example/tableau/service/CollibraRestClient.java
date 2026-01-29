@@ -29,6 +29,7 @@ import reactor.netty.transport.ProxyProvider;
 import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -121,6 +122,123 @@ public class CollibraRestClient {
      * This is the primary method for ingesting assets.
      */
     public Mono<CollibraIngestionResult> importAssets(List<CollibraAsset> assets, String assetType) {
+        return importAssets(assets, assetType, config.getBatchSize());
+    }
+
+    /**
+     * Import assets to Collibra in batches to avoid memory issues.
+     * Processes large lists of assets in smaller batches to prevent OutOfMemoryError.
+     * 
+     * @param assets list of assets to import
+     * @param assetType type of assets being imported
+     * @param batchSize maximum number of assets to process in a single batch
+     * @return aggregated result of all batch imports
+     * @throws IllegalArgumentException if batchSize is less than 1
+     */
+    public Mono<CollibraIngestionResult> importAssets(List<CollibraAsset> assets, String assetType, int batchSize) {
+        if (!isConfigured()) {
+            return Mono.just(CollibraIngestionResult.notConfigured());
+        }
+
+        if (assets == null || assets.isEmpty()) {
+            return Mono.just(CollibraIngestionResult.success(assetType, 0, 0, 0, 0, 0));
+        }
+
+        // Validate batch size
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("Batch size must be at least 1, got: " + batchSize);
+        }
+
+        // If assets fit in a single batch, process directly
+        if (assets.size() <= batchSize) {
+            return importAssetsBatch(assets, assetType);
+        }
+
+        // Process assets in batches
+        log.info("Processing {} assets in batches of {} for asset type {}", assets.size(), batchSize, assetType);
+        
+        List<List<CollibraAsset>> batches = new ArrayList<>();
+        for (int i = 0; i < assets.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, assets.size());
+            batches.add(assets.subList(i, end));
+        }
+
+        // Process batches sequentially and aggregate results
+        return processBatchesSequentially(batches, assetType);
+    }
+
+    /**
+     * Process batches sequentially to avoid overwhelming the system.
+     * Aggregates results from all batches into a single result.
+     * Continues processing all batches even if individual batches fail, but marks the overall result as failed.
+     */
+    private Mono<CollibraIngestionResult> processBatchesSequentially(List<List<CollibraAsset>> batches, String assetType) {
+        // Start with empty result
+        Mono<CollibraIngestionResult> result = Mono.just(CollibraIngestionResult.success(assetType, 0, 0, 0, 0, 0));
+        
+        int batchNumber = 1;
+        for (List<CollibraAsset> batch : batches) {
+            final int currentBatch = batchNumber;
+            result = result.flatMap(aggregatedResult -> {
+                log.info("Processing batch {}/{} with {} assets for asset type {}", 
+                        currentBatch, batches.size(), batch.size(), assetType);
+                return importAssetsBatch(batch, assetType)
+                        .map(batchResult -> mergeResults(aggregatedResult, batchResult))
+                        .onErrorResume(error -> {
+                            log.error("Batch {}/{} failed for asset type {}: {}", 
+                                    currentBatch, batches.size(), assetType, error.getMessage());
+                            // Return a failure result but with accumulated counts from previous batches
+                            CollibraIngestionResult failureResult = CollibraIngestionResult.failure(assetType, 
+                                    "Batch " + currentBatch + "/" + batches.size() + " failed: " + error.getMessage());
+                            failureResult.setTotalProcessed(aggregatedResult.getTotalProcessed() + batch.size());
+                            failureResult.setAssetsCreated(aggregatedResult.getAssetsCreated());
+                            failureResult.setAssetsUpdated(aggregatedResult.getAssetsUpdated());
+                            failureResult.setAssetsDeleted(aggregatedResult.getAssetsDeleted());
+                            failureResult.setAssetsSkipped(aggregatedResult.getAssetsSkipped());
+                            return Mono.just(failureResult);
+                        });
+            });
+            batchNumber++;
+        }
+        
+        return result;
+    }
+
+    /**
+     * Merge two ingestion results by summing their counts.
+     * If the second result failed, keeps the failure status but includes accumulated counts.
+     */
+    private CollibraIngestionResult mergeResults(CollibraIngestionResult result1, CollibraIngestionResult result2) {
+        boolean overallSuccess = result1.isSuccess() && result2.isSuccess();
+        String message;
+        String jobId;
+        
+        if (!result2.isSuccess()) {
+            // If current batch failed, use its failure message but preserve history
+            message = result2.getMessage();
+            jobId = result1.getJobId(); // Keep previous successful job ID
+        } else {
+            message = result2.getMessage();
+            jobId = result2.getJobId();
+        }
+        
+        return CollibraIngestionResult.builder()
+                .assetType(result1.getAssetType())
+                .totalProcessed(result1.getTotalProcessed() + result2.getTotalProcessed())
+                .assetsCreated(result1.getAssetsCreated() + result2.getAssetsCreated())
+                .assetsUpdated(result1.getAssetsUpdated() + result2.getAssetsUpdated())
+                .assetsDeleted(result1.getAssetsDeleted() + result2.getAssetsDeleted())
+                .assetsSkipped(result1.getAssetsSkipped() + result2.getAssetsSkipped())
+                .success(overallSuccess)
+                .message(message)
+                .jobId(jobId)
+                .build();
+    }
+
+    /**
+     * Import a single batch of assets (internal method).
+     */
+    private Mono<CollibraIngestionResult> importAssetsBatch(List<CollibraAsset> assets, String assetType) {
         if (!isConfigured()) {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
