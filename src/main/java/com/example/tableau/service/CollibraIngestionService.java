@@ -1173,7 +1173,7 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteId(siteId);
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteIdWithRelations(siteId);
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
