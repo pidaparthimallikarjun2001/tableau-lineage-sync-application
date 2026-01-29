@@ -843,28 +843,31 @@ public class CollibraIngestionService {
         }
 
         // Add derivation relations for calculated fields
-        // 01966232-fc24-7372-b280-9f1140904aa0:SOURCE - TableauReportAttribute is derived from Tableau Report Attribute
+        // 01966232-fc24-7372-b280-9f1140904aa0:SOURCE - Tableau Report Attribute is derived from Tableau Report Attribute
         if (Boolean.TRUE.equals(attr.getIsCalculated()) && attr.getLineageInfo() != null) {
             try {
                 JsonNode lineageNode = objectMapper.readTree(attr.getLineageInfo());
                 JsonNode upstreamFields = lineageNode.path("upstreamFields");
                 
                 if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
+                    // Collect all upstream field IDs for batch lookup
+                    List<String> upstreamFieldIds = new ArrayList<>();
                     for (JsonNode upstreamField : upstreamFields) {
                         String upstreamFieldId = upstreamField.path("id").asText(null);
-                        String upstreamFieldName = upstreamField.path("name").asText(null);
-                        
-                        if (upstreamFieldId != null && upstreamFieldName != null) {
-                            // Find the upstream report attribute in the database
-                            reportAttributeRepository.findByAssetId(upstreamFieldId).ifPresent(upstreamAttr -> {
-                                String upstreamIdentifier = CollibraAsset.createIdentifierName(
-                                    upstreamAttr.getAssetId(), upstreamAttr.getName());
-                                addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
-                                    upstreamIdentifier,
-                                    collibraConfig.getReportAttributeDomainName(), 
-                                    collibraConfig.getCommunityName());
-                            });
+                        if (upstreamFieldId != null) {
+                            upstreamFieldIds.add(upstreamFieldId);
                         }
+                    }
+                    
+                    // Batch lookup upstream report attributes to avoid N+1 query problem
+                    List<ReportAttribute> upstreamAttrs = reportAttributeRepository.findByAssetIdIn(upstreamFieldIds);
+                    for (ReportAttribute upstreamAttr : upstreamAttrs) {
+                        String upstreamIdentifier = CollibraAsset.createIdentifierName(
+                            upstreamAttr.getAssetId(), upstreamAttr.getName());
+                        addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
+                            upstreamIdentifier,
+                            collibraConfig.getReportAttributeDomainName(), 
+                            collibraConfig.getCommunityName());
                     }
                 }
             } catch (Exception e) {

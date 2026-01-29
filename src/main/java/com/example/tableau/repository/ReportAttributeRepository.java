@@ -18,6 +18,8 @@ public interface ReportAttributeRepository extends JpaRepository<ReportAttribute
 
     Optional<ReportAttribute> findByAssetId(String assetId);
 
+    List<ReportAttribute> findByAssetIdIn(List<String> assetIds);
+
     List<ReportAttribute> findByWorksheetId(String worksheetId);
 
     List<ReportAttribute> findBySiteId(String siteId);
