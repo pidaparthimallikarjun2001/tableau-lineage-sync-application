@@ -814,7 +814,7 @@ public class CollibraIngestionService {
         addAttribute(attributes, "Role in Report", attr.getFieldRole());
         addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
 
-        // Add relations to parent worksheet and source data source
+        // Add relations to parent worksheet and upstream report attributes (for calculated fields)
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         
         // Add relation to parent worksheet using the specified UUID
@@ -825,15 +825,6 @@ public class CollibraIngestionService {
                 worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
             addRelation(relations, "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
-        }
-
-        // Add relation to source data source
-        if (attr.getDataSource() != null) {
-            TableauDataSource dataSource = attr.getDataSource();
-            String dataSourceName = CollibraAsset.createIdentifierName(
-                dataSource.getAssetId(), dataSource.getName());
-            addRelation(relations, "relationid:TARGET", dataSourceName,
-                    collibraConfig.getDatasourceDomainName(), collibraConfig.getCommunityName());
         }
 
         // Add derivation relations for calculated fields
