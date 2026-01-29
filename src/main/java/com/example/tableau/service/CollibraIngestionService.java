@@ -5,6 +5,8 @@ import com.example.tableau.dto.collibra.*;
 import com.example.tableau.entity.*;
 import com.example.tableau.enums.StatusFlag;
 import com.example.tableau.repository.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class CollibraIngestionService {
     private final TableauWorksheetRepository worksheetRepository;
     private final TableauDataSourceRepository dataSourceRepository;
     private final ReportAttributeRepository reportAttributeRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public CollibraIngestionService(
             CollibraRestClient collibraClient,
@@ -804,10 +807,12 @@ public class CollibraIngestionService {
         String identifierName = CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
-        addAttribute(attributes, "Data Type", attr.getDataType());
-        addAttribute(attributes, "Field Role", attr.getFieldRole());
+        // Use the attribute names as specified in the requirement
+        addAttribute(attributes, "Technical Data Type", attr.getDataType());
+        addAttribute(attributes, "Role in Report", attr.getFieldRole());
+        addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
+        // Keep other attributes for reference
         addAttribute(attributes, "Is Calculated", attr.getIsCalculated() != null ? attr.getIsCalculated().toString() : null);
-        addAttribute(attributes, "Calculation Logic", attr.getCalculationLogic());
         addAttribute(attributes, "Source DataSource ID", attr.getSourceDatasourceId());
         addAttribute(attributes, "Source DataSource Name", attr.getSourceDatasourceName());
         addAttribute(attributes, "Source Column Name", attr.getSourceColumnName());
@@ -818,12 +823,13 @@ public class CollibraIngestionService {
         // Add relations to parent worksheet and source data source
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         
-        // Add relation to parent worksheet
+        // Add relation to parent worksheet using the specified UUID
+        // 0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE - Tableau Worksheet contains Tableau Report Attribute
         if (attr.getWorksheet() != null) {
             TableauWorksheet worksheet = attr.getWorksheet();
             String worksheetName = CollibraAsset.createWorksheetIdentifierName(
                 worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
-            addRelation(relations, "relationid:SOURCE", worksheetName,
+            addRelation(relations, "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
         }
 
@@ -834,6 +840,40 @@ public class CollibraIngestionService {
                 dataSource.getAssetId(), dataSource.getName());
             addRelation(relations, "relationid:TARGET", dataSourceName,
                     collibraConfig.getDatasourceDomainName(), collibraConfig.getCommunityName());
+        }
+
+        // Add derivation relations for calculated fields
+        // 01966232-fc24-7372-b280-9f1140904aa0:SOURCE - Tableau Report Attribute is derived from Tableau Report Attribute
+        if (Boolean.TRUE.equals(attr.getIsCalculated()) && attr.getLineageInfo() != null) {
+            try {
+                JsonNode lineageNode = objectMapper.readTree(attr.getLineageInfo());
+                JsonNode upstreamFields = lineageNode.path("upstreamFields");
+                
+                if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
+                    // Collect all upstream field IDs for batch lookup
+                    List<String> upstreamFieldIds = new ArrayList<>();
+                    for (JsonNode upstreamField : upstreamFields) {
+                        String upstreamFieldId = upstreamField.path("id").asText(null);
+                        if (upstreamFieldId != null) {
+                            upstreamFieldIds.add(upstreamFieldId);
+                        }
+                    }
+                    
+                    // Batch lookup upstream report attributes to avoid N+1 query problem
+                    List<ReportAttribute> upstreamAttrs = reportAttributeRepository.findByAssetIdIn(upstreamFieldIds);
+                    for (ReportAttribute upstreamAttr : upstreamAttrs) {
+                        String upstreamIdentifier = CollibraAsset.createIdentifierName(
+                            upstreamAttr.getAssetId(), upstreamAttr.getName());
+                        addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
+                            upstreamIdentifier,
+                            collibraConfig.getReportAttributeDomainName(), 
+                            collibraConfig.getCommunityName());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse lineage info for report attribute {}: {}", 
+                    attr.getAssetId(), e.getMessage());
+            }
         }
 
         return CollibraAsset.builder()

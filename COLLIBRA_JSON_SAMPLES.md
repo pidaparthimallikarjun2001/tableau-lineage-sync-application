@@ -613,12 +613,12 @@ None (Server is the root of the hierarchy)
     }
   },
   "attributes": {
-    "Data Type": [
+    "Technical Data Type": [
       {
         "value": "REAL"
       }
     ],
-    "Field Role": [
+    "Role in Report": [
       {
         "value": "measure"
       }
@@ -628,7 +628,7 @@ None (Server is the root of the hierarchy)
         "value": "true"
       }
     ],
-    "Calculation Logic": [
+    "Calculation Rule": [
       {
         "value": "SUM([Sales Amount]) - SUM([Discounts])"
       }
@@ -655,7 +655,7 @@ None (Server is the root of the hierarchy)
     ]
   },
   "relations": {
-    "relationid:SOURCE": [
+    "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE": [
       {
         "domain": {
           "name": "Tableau Worksheets",
@@ -675,6 +675,26 @@ None (Server is the root of the hierarchy)
           }
         },
         "name": "ds-333pqr > Sales Database"
+      }
+    ],
+    "01966232-fc24-7372-b280-9f1140904aa0:SOURCE": [
+      {
+        "domain": {
+          "name": "Tableau Report Attributes",
+          "community": {
+            "name": "Tableau Technology"
+          }
+        },
+        "name": "ra-444xyz > Sales Amount"
+      },
+      {
+        "domain": {
+          "name": "Tableau Report Attributes",
+          "community": {
+            "name": "Tableau Technology"
+          }
+        },
+        "name": "ra-555abc > Discounts"
       }
     ]
   }
@@ -699,12 +719,12 @@ None (Server is the root of the hierarchy)
     }
   },
   "attributes": {
-    "Data Type": [
+    "Technical Data Type": [
       {
         "value": "STRING"
       }
     ],
-    "Field Role": [
+    "Role in Report": [
       {
         "value": "dimension"
       }
@@ -746,7 +766,7 @@ None (Server is the root of the hierarchy)
     ]
   },
   "relations": {
-    "relationid:SOURCE": [
+    "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE": [
       {
         "domain": {
           "name": "Tableau Worksheets",
@@ -773,10 +793,10 @@ None (Server is the root of the hierarchy)
 ```
 
 ### Attributes to Configure in Collibra
-- **Data Type** (String) - Field data type (STRING, INTEGER, REAL, BOOLEAN, DATE, DATETIME, etc.)
-- **Field Role** (String) - Role of the field (dimension, measure, etc.)
+- **Technical Data Type** (String) - Field data type (STRING, INTEGER, REAL, BOOLEAN, DATE, DATETIME, etc.)
+- **Role in Report** (String) - Role of the field (dimension, measure, etc.)
 - **Is Calculated** (Boolean String) - Whether this is a calculated field
-- **Calculation Logic** (String) - Formula/calculation for calculated fields
+- **Calculation Rule** (String) - Formula/calculation for calculated fields
 - **Source DataSource ID** (String) - ID of the source data source
 - **Source DataSource Name** (String) - Name of the source data source
 - **Source Column Name** (String) - Name of the source column (for direct fields)
@@ -785,8 +805,9 @@ None (Server is the root of the hierarchy)
 - **Worksheet ID** (String) - Worksheet identifier for composite uniqueness
 
 ### Relations to Configure in Collibra
-- **relationid:SOURCE** - Points to parent Worksheet (contains relationship)
+- **0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE** - Points to parent Worksheet (Tableau Worksheet contains Tableau Report Attribute)
 - **relationid:TARGET** - Points to source Data Source (lineage relationship)
+- **01966232-fc24-7372-b280-9f1140904aa0:SOURCE** - Points to upstream Report Attributes (for calculated fields that derive from other report attributes)
 
 ---
 
