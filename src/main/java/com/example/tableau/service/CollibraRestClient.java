@@ -129,7 +129,29 @@ public class CollibraRestClient {
      * Import assets to Collibra in batches to avoid memory issues.
      * Processes large lists of assets in smaller batches to prevent OutOfMemoryError.
      * 
-     * @param assets list of assets to import
+     * <p><b>IMPORTANT - Cross-Batch Dependencies:</b></p>
+     * When assets have dependencies (e.g., ReportAttribute A references ReportAttribute B),
+     * splitting them across different batches can cause relation creation failures because
+     * assets in earlier batches may reference assets in later batches that don't exist yet
+     * in Collibra at the time of import.
+     * 
+     * <p><b>Solution - Dependency-Aware Ordering:</b></p>
+     * Assets should be ordered before batching so that:
+     * <ul>
+     *   <li>Assets without dependencies are imported first</li>
+     *   <li>Assets that are referenced by others (e.g., parent projects, non-calculated fields) are imported first</li>
+     *   <li>Assets with dependencies (e.g., calculated fields, child projects) are imported later</li>
+     * </ul>
+     * 
+     * <p><b>Batch Size Configuration:</b></p>
+     * <ul>
+     *   <li>Default batch size: 5000 (balances memory usage and dependency handling)</li>
+     *   <li>Decrease if experiencing OutOfMemoryError: Set collibra.batch.size to smaller value (e.g., 1000, 2000)</li>
+     *   <li>Increase if you have very large datasets with complex dependencies: Set to 10000 or higher</li>
+     *   <li>If batching occurs, a warning will be logged about potential cross-batch dependency issues</li>
+     * </ul>
+     * 
+     * @param assets list of assets to import (should be pre-ordered with dependencies in mind)
      * @param assetType type of assets being imported
      * @param batchSize maximum number of assets to process in a single batch
      * @return aggregated result of all batch imports
@@ -153,6 +175,13 @@ public class CollibraRestClient {
         if (assets.size() <= batchSize) {
             return importAssetsBatch(assets, assetType);
         }
+
+        // Log warning if batching occurs, as it may cause cross-batch dependency issues
+        log.warn("Asset count ({}) exceeds batch size ({}). Assets will be split across {} batches. " +
+                "If assets have dependencies on each other, ensure they are pre-ordered with dependencies last. " +
+                "Some relations may fail if dependencies span across batches. " +
+                "Consider ordering assets by dependency or adjusting collibra.batch.size property.",
+                assets.size(), batchSize, (int) Math.ceil((double) assets.size() / batchSize));
 
         // Process assets in batches
         log.info("Processing {} assets in batches of {} for asset type {}", assets.size(), batchSize, assetType);

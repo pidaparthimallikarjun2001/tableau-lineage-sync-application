@@ -16,9 +16,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -115,6 +117,89 @@ public class CollibraIngestionService {
         }
         
         return result;
+    }
+
+    /**
+     * Sort projects by dependency order: parent projects before child projects.
+     * This ensures that when batching occurs, parent projects are imported first,
+     * minimizing the risk of cross-batch dependency failures.
+     * 
+     * @param projects list of projects to sort
+     * @return sorted list with parent projects first
+     */
+    private List<TableauProject> sortProjectsByDependency(List<TableauProject> projects) {
+        List<TableauProject> sorted = new ArrayList<>();
+        Set<String> processed = new HashSet<>();
+        
+        // Build a map for quick lookup
+        Map<String, TableauProject> projectMap = new HashMap<>();
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            projectMap.put(key, project);
+        }
+        
+        // Add root projects first (those without parent)
+        for (TableauProject project : projects) {
+            if (project.getParentProjectId() == null || project.getParentProjectId().isEmpty()) {
+                sorted.add(project);
+                processed.add(project.getAssetId() + ":" + project.getSiteId());
+            }
+        }
+        
+        // Add child projects in layers
+        int previousSize;
+        do {
+            previousSize = sorted.size();
+            for (TableauProject project : projects) {
+                String key = project.getAssetId() + ":" + project.getSiteId();
+                if (!processed.contains(key) && project.getParentProjectId() != null) {
+                    String parentKey = project.getParentProjectId() + ":" + project.getSiteId();
+                    // Add if parent is already processed or doesn't exist in the current set
+                    if (processed.contains(parentKey) || !projectMap.containsKey(parentKey)) {
+                        sorted.add(project);
+                        processed.add(key);
+                    }
+                }
+            }
+        } while (sorted.size() > previousSize); // Continue until no more projects can be added
+        
+        // Add any remaining projects that couldn't be ordered (orphans)
+        for (TableauProject project : projects) {
+            String key = project.getAssetId() + ":" + project.getSiteId();
+            if (!processed.contains(key)) {
+                sorted.add(project);
+            }
+        }
+        
+        return sorted;
+    }
+
+    /**
+     * Sort report attributes by dependency order: non-calculated fields before calculated fields.
+     * This ensures that when batching occurs, fields that are referenced by calculated fields
+     * are imported first, minimizing the risk of cross-batch dependency failures.
+     * 
+     * @param reportAttributes list of report attributes to sort
+     * @return sorted list with non-calculated fields first
+     */
+    private List<ReportAttribute> sortReportAttributesByDependency(List<ReportAttribute> reportAttributes) {
+        List<ReportAttribute> sorted = new ArrayList<>();
+        
+        // Add non-calculated fields first (they don't depend on others)
+        for (ReportAttribute attr : reportAttributes) {
+            if (!Boolean.TRUE.equals(attr.getIsCalculated())) {
+                sorted.add(attr);
+            }
+        }
+        
+        // Add calculated fields last (they may depend on non-calculated fields or other calculated fields)
+        for (ReportAttribute attr : reportAttributes) {
+            if (Boolean.TRUE.equals(attr.getIsCalculated())) {
+                sorted.add(attr);
+            }
+        }
+        
+        return sorted;
     }
 
     // ======================== Server Ingestion ========================
@@ -1027,6 +1112,9 @@ public class CollibraIngestionService {
 
         List<TableauProject> projects = projectRepository.findAllWithSiteAndServer();
         
+        // Sort projects by dependency: parents before children
+        projects = sortProjectsByDependency(projects);
+        
         // Build a map of projects for efficient parent lookup
         Map<String, TableauProject> projectMap = new HashMap<>();
         for (TableauProject project : projects) {
@@ -1222,6 +1310,10 @@ public class CollibraIngestionService {
         }
 
         List<ReportAttribute> reportAttributes = reportAttributeRepository.findAll();
+        
+        // Sort report attributes by dependency: non-calculated fields before calculated fields
+        reportAttributes = sortReportAttributesByDependency(reportAttributes);
+        
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
@@ -1594,6 +1686,9 @@ public class CollibraIngestionService {
 
         List<TableauProject> projects = projectRepository.findAllBySiteIdWithSiteAndServer(siteId);
         
+        // Sort projects by dependency: parents before children
+        projects = sortProjectsByDependency(projects);
+        
         // Create a map of projects by (assetId, siteId) to avoid N+1 queries when looking up parent projects
         Map<String, TableauProject> projectMap = new HashMap<>();
         for (TableauProject project : projects) {
@@ -1789,6 +1884,10 @@ public class CollibraIngestionService {
         }
 
         List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteIdWithRelations(siteId);
+        
+        // Sort report attributes by dependency: non-calculated fields before calculated fields
+        reportAttributes = sortReportAttributesByDependency(reportAttributes);
+        
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
