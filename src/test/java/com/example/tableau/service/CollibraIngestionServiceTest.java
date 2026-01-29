@@ -955,7 +955,7 @@ class CollibraIngestionServiceTest {
 
         ReportAttribute reportAttribute = createTestReportAttribute("ra-1", "Test Attribute", "site-1", StatusFlag.NEW);
 
-        when(reportAttributeRepository.findBySiteId("site-1")).thenReturn(List.of(reportAttribute));
+        when(reportAttributeRepository.findBySiteIdWithRelations("site-1")).thenReturn(List.of(reportAttribute));
         when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
                 .thenReturn(Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0)));
 
@@ -964,7 +964,7 @@ class CollibraIngestionServiceTest {
         assertNotNull(result);
         assertTrue(result.isSuccess());
         assertEquals(1, result.getTotalProcessed());
-        verify(reportAttributeRepository).findBySiteId("site-1");
+        verify(reportAttributeRepository).findBySiteIdWithRelations("site-1");
     }
 
     @Test
@@ -993,7 +993,7 @@ class CollibraIngestionServiceTest {
         when(workbookRepository.findAllBySiteIdWithProject("site-1")).thenReturn(Collections.emptyList());
         when(worksheetRepository.findAllBySiteIdWithWorkbook("site-1")).thenReturn(Collections.emptyList());
         when(dataSourceRepository.findBySiteId("site-1")).thenReturn(Collections.emptyList());
-        when(reportAttributeRepository.findBySiteId("site-1")).thenReturn(Collections.emptyList());
+        when(reportAttributeRepository.findBySiteIdWithRelations("site-1")).thenReturn(Collections.emptyList());
 
         // Mock import responses
         when(collibraClient.importAssets(anyList(), anyString()))

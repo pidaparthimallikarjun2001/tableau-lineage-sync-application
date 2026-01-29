@@ -47,5 +47,16 @@ public interface ReportAttributeRepository extends JpaRepository<ReportAttribute
     @Query("SELECT r FROM ReportAttribute r WHERE r.siteId = :siteId AND r.statusFlag != 'DELETED'")
     List<ReportAttribute> findAllActiveBySiteId(@Param("siteId") String siteId);
 
+    /**
+     * Find all report attributes for a specific site with their worksheet and dataSource relationships eagerly loaded.
+     * This method avoids N+1 query problems and lazy loading exceptions during Collibra ingestion
+     * by fetching all related entities in a single query.
+     * 
+     * @param siteId the Tableau site ID (assetId of the site)
+     * @return List of report attributes for the site with worksheet and dataSource relationships loaded
+     */
+    @Query("SELECT DISTINCT r FROM ReportAttribute r LEFT JOIN FETCH r.worksheet LEFT JOIN FETCH r.dataSource WHERE r.siteId = :siteId")
+    List<ReportAttribute> findBySiteIdWithRelations(@Param("siteId") String siteId);
+
     boolean existsByAssetIdAndWorksheetIdAndSiteId(String assetId, String worksheetId, String siteId);
 }
