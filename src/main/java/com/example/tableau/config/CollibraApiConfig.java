@@ -65,7 +65,7 @@ public class CollibraApiConfig {
     @Value("${collibra.read.timeout:60000}")
     private int readTimeout;
 
-    @Value("${collibra.batch.size:1000}")
+    @Value("${collibra.batch.size:2000}")
     @jakarta.validation.constraints.Min(value = 1, message = "Batch size must be at least 1")
     private int batchSize;
 

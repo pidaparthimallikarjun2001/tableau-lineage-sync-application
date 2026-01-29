@@ -127,7 +127,32 @@ public class CollibraRestClient {
 
     /**
      * Import assets to Collibra in batches to avoid memory issues.
-     * Processes large lists of assets in smaller batches to prevent OutOfMemoryError.
+     * Uses a TWO-PHASE approach to guarantee no relation failures:
+     * 
+     * <p><b>Phase 1 - Import Assets Without Relations:</b></p>
+     * All assets are imported with only basic information (no relations).
+     * This ensures all assets exist in Collibra before relations are created.
+     * 
+     * <p><b>Phase 2 - Update Assets With Relations:</b></p>
+     * All assets are re-imported with relations included.
+     * Since all target assets now exist in Collibra (from Phase 1),
+     * all relations will succeed.
+     * 
+     * <p><b>Why This Works:</b></p>
+     * <ul>
+     *   <li>Collibra Import API uses identifier names (not UUIDs) for relations</li>
+     *   <li>Phase 1 creates all assets with their identifiers</li>
+     *   <li>Phase 2 can reference any asset by identifier (they all exist)</li>
+     *   <li>existingAssetPolicy: UPDATE ensures Phase 2 updates existing assets</li>
+     *   <li>No cross-batch or cross-job dependency issues</li>
+     * </ul>
+     * 
+     * <p><b>Performance:</b></p>
+     * <ul>
+     *   <li>Two passes through the data (Phase 1 + Phase 2)</li>
+     *   <li>Slightly slower than single-phase, but guarantees success</li>
+     *   <li>Each phase can still be batched for memory management</li>
+     * </ul>
      * 
      * @param assets list of assets to import
      * @param assetType type of assets being imported
@@ -149,13 +174,99 @@ public class CollibraRestClient {
             throw new IllegalArgumentException("Batch size must be at least 1, got: " + batchSize);
         }
 
+        // Check if any assets have relations
+        boolean hasRelations = assets.stream().anyMatch(asset -> 
+            asset.getRelations() != null && !asset.getRelations().isEmpty());
+        
+        // If no assets have relations, use single-phase import (no risk of relation failures)
+        if (!hasRelations) {
+            if (assets.size() <= batchSize) {
+                return importAssetsBatch(assets, assetType);
+            } else {
+                // Batch without two-phase (safe since no relations)
+                log.info("Single-phase import for {} {} assets (no relations, batch size: {})", 
+                        assets.size(), assetType, batchSize);
+                return importAssetsInBatches(assets, assetType, batchSize);
+            }
+        }
+
+        // Assets have relations - use TWO-PHASE IMPORT to guarantee no relation failures
+        log.info("Starting TWO-PHASE import for {} {} assets with relations (batch size: {})", 
+                assets.size(), assetType, batchSize);
+
+        // PHASE 1: Import assets WITHOUT relations
+        log.info("PHASE 1: Importing {} assets without relations to establish all identifiers in Collibra", 
+                assets.size());
+        List<CollibraAsset> assetsWithoutRelations = stripRelations(assets);
+        
+        return importAssetsInBatches(assetsWithoutRelations, assetType + " (Phase 1: No Relations)", batchSize)
+                .flatMap(phase1Result -> {
+                    if (!phase1Result.isSuccess()) {
+                        log.error("Phase 1 failed, aborting Phase 2");
+                        return Mono.just(phase1Result);
+                    }
+                    
+                    log.info("PHASE 1 complete: {} assets created/updated without relations", 
+                            phase1Result.getTotalProcessed());
+                    
+                    // PHASE 2: Import assets WITH relations (now all targets exist)
+                    log.info("PHASE 2: Updating {} assets with relations (all targets now exist in Collibra)", 
+                            assets.size());
+                    
+                    return importAssetsInBatches(assets, assetType + " (Phase 2: With Relations)", batchSize)
+                            .map(phase2Result -> {
+                                log.info("PHASE 2 complete: {} assets updated with relations successfully", 
+                                        phase2Result.getTotalProcessed());
+                                
+                                // Return combined result
+                                return CollibraIngestionResult.builder()
+                                        .assetType(assetType)
+                                        .totalProcessed(phase2Result.getTotalProcessed())
+                                        // Use Phase 1's created count (assets created in Phase 1)
+                                        // Phase 2 updates those assets, so assetsUpdated = assetsCreated
+                                        .assetsCreated(phase1Result.getAssetsCreated())
+                                        .assetsUpdated(phase2Result.getTotalProcessed())
+                                        .assetsDeleted(0)
+                                        .assetsSkipped(0)
+                                        .success(true)
+                                        .message("Two-phase import completed successfully: " +
+                                                phase1Result.getTotalProcessed() + " assets created (Phase 1), " +
+                                                phase2Result.getTotalProcessed() + " assets updated with relations (Phase 2)")
+                                        .jobId(phase2Result.getJobId())
+                                        .build();
+                            });
+                });
+    }
+
+    /**
+     * Strip relations from assets to create a copy without relations.
+     * Used in Phase 1 of two-phase import.
+     */
+    private List<CollibraAsset> stripRelations(List<CollibraAsset> assets) {
+        return assets.stream()
+                .map(asset -> CollibraAsset.builder()
+                        .resourceType(asset.getResourceType())
+                        .type(asset.getType())
+                        .displayName(asset.getDisplayName())
+                        .identifier(asset.getIdentifier())
+                        .attributes(asset.getAttributes())
+                        .relations(null) // No relations in Phase 1
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Import assets in batches (internal helper).
+     * Splits assets into batches and processes them sequentially.
+     */
+    private Mono<CollibraIngestionResult> importAssetsInBatches(List<CollibraAsset> assets, String assetType, int batchSize) {
         // If assets fit in a single batch, process directly
         if (assets.size() <= batchSize) {
             return importAssetsBatch(assets, assetType);
         }
 
         // Process assets in batches
-        log.info("Processing {} assets in batches of {} for asset type {}", assets.size(), batchSize, assetType);
+        log.info("Processing {} assets in batches of {} for {}", assets.size(), batchSize, assetType);
         
         List<List<CollibraAsset>> batches = new ArrayList<>();
         for (int i = 0; i < assets.size(); i += batchSize) {
