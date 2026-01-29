@@ -239,4 +239,103 @@ public class CollibraController {
         CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
+
+    // ======================== Site-Level Ingestion Endpoints ========================
+
+    @Operation(
+        summary = "Ingest all assets for a site to Collibra",
+        description = "Ingest all Tableau assets (projects, workbooks, worksheets, data sources, report attributes) " +
+            "for a specific site to Collibra. This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for all assets in the site",
+            content = @Content(schema = @Schema(implementation = CollibraIngestionResult.class)))
+    })
+    @PostMapping("/ingest/sites/{siteId}/all")
+    public ResponseEntity<CollibraIngestionResult> ingestAllBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestAllBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest projects for a site to Collibra",
+        description = "Ingest all Tableau projects for a specific site to Collibra based on status flags. " +
+            "This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for projects in the site")
+    })
+    @PostMapping("/ingest/sites/{siteId}/projects")
+    public ResponseEntity<CollibraIngestionResult> ingestProjectsBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestProjectsBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest workbooks for a site to Collibra",
+        description = "Ingest all Tableau workbooks for a specific site to Collibra based on status flags. " +
+            "This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for workbooks in the site")
+    })
+    @PostMapping("/ingest/sites/{siteId}/workbooks")
+    public ResponseEntity<CollibraIngestionResult> ingestWorkbooksBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestWorkbooksBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest worksheets for a site to Collibra",
+        description = "Ingest all Tableau worksheets for a specific site to Collibra based on status flags. " +
+            "This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for worksheets in the site")
+    })
+    @PostMapping("/ingest/sites/{siteId}/worksheets")
+    public ResponseEntity<CollibraIngestionResult> ingestWorksheetsBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestWorksheetsBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest data sources for a site to Collibra",
+        description = "Ingest all Tableau data sources for a specific site to Collibra based on status flags. " +
+            "This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for data sources in the site")
+    })
+    @PostMapping("/ingest/sites/{siteId}/datasources")
+    public ResponseEntity<CollibraIngestionResult> ingestDataSourcesBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestDataSourcesBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
+
+    @Operation(
+        summary = "Ingest report attributes for a site to Collibra",
+        description = "Ingest all Tableau report attributes for a specific site to Collibra based on status flags. " +
+            "This reduces load on Collibra by processing assets site by site."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Ingestion result for report attributes in the site")
+    })
+    @PostMapping("/ingest/sites/{siteId}/report-attributes")
+    public ResponseEntity<CollibraIngestionResult> ingestReportAttributesBySite(
+            @Parameter(description = "Tableau Site ID (asset ID)")
+            @PathVariable String siteId) {
+        CollibraIngestionResult result = ingestionService.ingestReportAttributesBySiteToCollibra(siteId).block();
+        return ResponseEntity.ok(result);
+    }
 }
