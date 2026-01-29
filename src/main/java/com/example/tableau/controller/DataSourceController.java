@@ -57,7 +57,7 @@ public class DataSourceController {
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<TableauDataSource>> getDataSourcesBySiteId(
             @Parameter(description = "Tableau Site ID")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         return ResponseEntity.ok(dataSourceService.getActiveDataSourcesBySiteId(siteId));
     }
 
@@ -71,7 +71,7 @@ public class DataSourceController {
     @GetMapping("/type/{sourceType}")
     public ResponseEntity<List<TableauDataSource>> getDataSourcesByType(
             @Parameter(description = "Source type (DIRECT_IMPORT, CUSTOM_SQL, PUBLISHED, FILE_BASED, OTHER)")
-            @PathVariable SourceType sourceType) {
+            @PathVariable("sourceType") SourceType sourceType) {
         return ResponseEntity.ok(dataSourceService.getDataSourcesByType(sourceType));
     }
 
@@ -110,7 +110,7 @@ public class DataSourceController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauDataSource> getDataSourceById(
             @Parameter(description = "Database ID of the data source")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(dataSourceService.getDataSourceById(id));
     }
 
@@ -195,7 +195,7 @@ public class DataSourceController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestDataSourceToCollibra(
             @Parameter(description = "Database ID of the data source")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestDataSourceToCollibra(id).block();
         return ResponseEntity.ok(result);
     }

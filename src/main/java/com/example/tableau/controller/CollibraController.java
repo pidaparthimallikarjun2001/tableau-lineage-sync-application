@@ -90,7 +90,7 @@ public class CollibraController {
     @PostMapping("/ingest/servers/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestServer(
             @Parameter(description = "Database ID of the server")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestServerToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -114,7 +114,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestSite(
             @Parameter(description = "Database ID of the site")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestSiteToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -139,7 +139,7 @@ public class CollibraController {
     @PostMapping("/ingest/projects/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestProject(
             @Parameter(description = "Database ID of the project")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestProjectToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -163,7 +163,7 @@ public class CollibraController {
     @PostMapping("/ingest/workbooks/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestWorkbook(
             @Parameter(description = "Database ID of the workbook")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestWorkbookToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -187,7 +187,7 @@ public class CollibraController {
     @PostMapping("/ingest/worksheets/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestWorksheet(
             @Parameter(description = "Database ID of the worksheet")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestWorksheetToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -211,7 +211,7 @@ public class CollibraController {
     @PostMapping("/ingest/datasources/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestDataSource(
             @Parameter(description = "Database ID of the data source")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestDataSourceToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -235,7 +235,7 @@ public class CollibraController {
     @PostMapping("/ingest/report-attributes/{id}")
     public ResponseEntity<CollibraIngestionResult> ingestReportAttribute(
             @Parameter(description = "Database ID of the report attribute")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
@@ -254,7 +254,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/all")
     public ResponseEntity<CollibraIngestionResult> ingestAllBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestAllBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }
@@ -270,7 +270,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/projects")
     public ResponseEntity<CollibraIngestionResult> ingestProjectsBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestProjectsBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }
@@ -286,7 +286,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/workbooks")
     public ResponseEntity<CollibraIngestionResult> ingestWorkbooksBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestWorkbooksBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }
@@ -302,7 +302,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/worksheets")
     public ResponseEntity<CollibraIngestionResult> ingestWorksheetsBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestWorksheetsBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }
@@ -318,7 +318,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/datasources")
     public ResponseEntity<CollibraIngestionResult> ingestDataSourcesBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestDataSourcesBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }
@@ -334,7 +334,7 @@ public class CollibraController {
     @PostMapping("/ingest/sites/{siteId}/report-attributes")
     public ResponseEntity<CollibraIngestionResult> ingestReportAttributesBySite(
             @Parameter(description = "Tableau Site ID (asset ID)")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         CollibraIngestionResult result = ingestionService.ingestReportAttributesBySiteToCollibra(siteId).block();
         return ResponseEntity.ok(result);
     }

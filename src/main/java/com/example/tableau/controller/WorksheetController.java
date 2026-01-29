@@ -56,7 +56,7 @@ public class WorksheetController {
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<TableauWorksheet>> getWorksheetsBySiteId(
             @Parameter(description = "Tableau Site ID")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         return ResponseEntity.ok(worksheetService.getActiveWorksheetsBySiteId(siteId));
     }
 
@@ -71,7 +71,7 @@ public class WorksheetController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauWorksheet> getWorksheetById(
             @Parameter(description = "Database ID of the worksheet")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(worksheetService.getWorksheetById(id));
     }
 
@@ -114,7 +114,7 @@ public class WorksheetController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteWorksheet(
             @Parameter(description = "Database ID of the worksheet to delete")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         worksheetService.softDeleteWorksheetAndChildren(id);
         return ResponseEntity.ok().build();
     }
@@ -145,7 +145,7 @@ public class WorksheetController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestWorksheetToCollibra(
             @Parameter(description = "Database ID of the worksheet")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestWorksheetToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
