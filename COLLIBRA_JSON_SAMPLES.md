@@ -666,17 +666,6 @@ None (Server is the root of the hierarchy)
         "name": "ws-222mno > Sales Overview"
       }
     ],
-    "relationid:TARGET": [
-      {
-        "domain": {
-          "name": "Tableau Data Sources",
-          "community": {
-            "name": "Tableau Technology"
-          }
-        },
-        "name": "ds-333pqr > Sales Database"
-      }
-    ],
     "01966232-fc24-7372-b280-9f1140904aa0:SOURCE": [
       {
         "domain": {
@@ -776,17 +765,6 @@ None (Server is the root of the hierarchy)
         },
         "name": "ws-222mno > Sales Overview"
       }
-    ],
-    "relationid:TARGET": [
-      {
-        "domain": {
-          "name": "Tableau Data Sources",
-          "community": {
-            "name": "Tableau Technology"
-          }
-        },
-        "name": "ds-333pqr > Sales Database"
-      }
     ]
   }
 }
@@ -806,7 +784,6 @@ None (Server is the root of the hierarchy)
 
 ### Relations to Configure in Collibra
 - **0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE** - Points to parent Worksheet (Tableau Worksheet contains Tableau Report Attribute)
-- **relationid:TARGET** - Points to source Data Source (lineage relationship)
 - **01966232-fc24-7372-b280-9f1140904aa0:SOURCE** - Points to upstream Report Attributes (for calculated fields that derive from other report attributes)
 
 ---
@@ -851,7 +828,7 @@ collibra.domain.report-attribute=Tableau Report Attributes
 1. **Identifier Format**: All identifiers follow the format `{assetId} > {assetName}` to ensure uniqueness
 2. **Relations**: 
    - `relationid:SOURCE` represents parent-child relationships (e.g., Workbook contains Worksheet)
-   - `relationid:TARGET` represents lineage/dependency relationships (e.g., Report Attribute sources from Data Source)
+   - Specific UUID relations are used for certain relationships (e.g., `0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE` for Worksheet-to-ReportAttribute, `01966232-fc24-7372-b280-9f1140904aa0:SOURCE` for ReportAttribute-to-ReportAttribute derivation)
 3. **Composite Uniqueness**: Site ID is included as an attribute for assets that can exist across multiple sites
 4. **Null Values**: Attributes with null or empty values are excluded from the JSON
 5. **Relations**: Relations with no parent are excluded from the JSON (e.g., Server has no parent)
