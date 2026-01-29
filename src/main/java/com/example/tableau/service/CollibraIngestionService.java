@@ -811,7 +811,7 @@ public class CollibraIngestionService {
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
         // Only include the three required attributes as specified in the requirement
         addAttribute(attributes, "Technical Data Type", attr.getDataType());
-        addAttribute(attributes, "Role in Report", attr.getFieldRole());
+        addAttribute(attributes, "Role in Report", capitalizeFieldRole(attr.getFieldRole()));
         addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
 
         // Add relations to parent worksheet and upstream report attributes (for calculated fields)
@@ -1354,5 +1354,20 @@ public class CollibraIngestionService {
                     .value(value)
                     .build());
         }
+    }
+
+    /**
+     * Capitalizes the field role value for Collibra ingestion.
+     * Converts the first character to uppercase and the rest to lowercase.
+     * For example: "MEASURE" -> "Measure", "dimension" -> "Dimension"
+     *
+     * @param fieldRole the field role value from the database
+     * @return the capitalized field role, or null if input is null
+     */
+    private String capitalizeFieldRole(String fieldRole) {
+        if (fieldRole == null || fieldRole.isEmpty()) {
+            return fieldRole;
+        }
+        return fieldRole.substring(0, 1).toUpperCase() + fieldRole.substring(1).toLowerCase();
     }
 }

@@ -968,6 +968,76 @@ class CollibraIngestionServiceTest {
     }
 
     @Test
+    void testIngestReportAttributeToCollibra_CapitalizesFieldRole() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with uppercase field role (as it comes from Tableau API)
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-1", "Test Attribute", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("MEASURE");  // Uppercase from API
+
+        when(reportAttributeRepository.findById(1L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertFalse(assets.isEmpty(), "Should have at least one asset");
+                    
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        List<CollibraAttributeValue> roleValues = attributes.get("Role in Report");
+                        assertFalse(roleValues.isEmpty(), "Role in Report should have a value");
+                        
+                        String roleValue = roleValues.get(0).getValue();
+                        assertEquals("Measure", roleValue, 
+                            "Field role should be capitalized: first letter uppercase, rest lowercase");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(1L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        verify(collibraClient).importAssets(anyList(), eq("ReportAttribute"));
+    }
+
+    @Test
+    void testIngestReportAttributeToCollibra_CapitalizesFieldRole_Dimension() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Test with DIMENSION
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-2", "Dimension Field", "site-1", StatusFlag.NEW);
+        reportAttribute.setFieldRole("DIMENSION");  // Uppercase from API
+
+        when(reportAttributeRepository.findById(2L)).thenReturn(Optional.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    CollibraAsset asset = assets.get(0);
+                    Map<String, List<CollibraAttributeValue>> attributes = asset.getAttributes();
+                    
+                    if (attributes != null && attributes.containsKey("Role in Report")) {
+                        String roleValue = attributes.get("Role in Report").get(0).getValue();
+                        assertEquals("Dimension", roleValue, 
+                            "DIMENSION should be capitalized to Dimension");
+                    }
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributeToCollibra(2L).block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
+
+    @Test
     void testIngestAllBySiteToCollibra_NotConfigured() {
         when(collibraClient.isConfigured()).thenReturn(false);
 
