@@ -930,7 +930,9 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        return reportAttributeRepository.findById(reportAttributeId)
+        // Use findByIdWithRelations to eagerly fetch worksheet and dataSource relationships
+        // This prevents LazyInitializationException when mapping to Collibra assets
+        return reportAttributeRepository.findByIdWithRelations(reportAttributeId)
                 .map(attr -> {
                     CollibraAsset asset = mapReportAttributeToCollibraAsset(attr);
                     return collibraClient.importAssets(List.of(asset), "ReportAttribute");
@@ -1317,7 +1319,9 @@ public class CollibraIngestionService {
             return Mono.just(CollibraIngestionResult.notConfigured());
         }
 
-        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAll();
+        // Use findAllWithRelations to eagerly fetch worksheet and dataSource relationships
+        // This prevents LazyInitializationException when mapping to Collibra assets
+        List<ReportAttribute> reportAttributes = reportAttributeRepository.findAllWithRelations();
         
         // Sort report attributes by dependency: non-calculated fields before calculated fields
         reportAttributes = sortReportAttributesByDependency(reportAttributes);
