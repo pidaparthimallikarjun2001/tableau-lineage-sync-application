@@ -105,6 +105,15 @@ public class CollibraAsset {
     }
 
     /**
+     * Creates an identifier name for report attribute assets in the format: siteid > assetid
+     */
+    public static String createReportAttributeIdentifierName(String siteId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        return safeSiteId + " > " + safeAssetId;
+    }
+
+    /**
      * Creates a full name in the format: siteid>assetid>assetname (for backward compatibility)
      * @deprecated Use createIdentifierName instead
      */

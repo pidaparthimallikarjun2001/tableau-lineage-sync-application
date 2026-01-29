@@ -769,7 +769,8 @@ public class CollibraIngestionService {
 
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
-                .map(attr -> CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName()))
+                .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
+                    attr.getSiteId(), attr.getAssetId(), attr.getName()))
                 .toList();
 
         final int finalSkipped = skipped;
@@ -804,21 +805,14 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapReportAttributeToCollibraAsset(ReportAttribute attr) {
-        String identifierName = CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName());
+        String identifierName = CollibraAsset.createReportAttributeIdentifierName(
+            attr.getSiteId(), attr.getAssetId(), attr.getName());
         
         Map<String, List<CollibraAttributeValue>> attributes = new HashMap<>();
-        // Use the attribute names as specified in the requirement
+        // Only include the three required attributes as specified in the requirement
         addAttribute(attributes, "Technical Data Type", attr.getDataType());
         addAttribute(attributes, "Role in Report", attr.getFieldRole());
         addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
-        // Keep other attributes for reference
-        addAttribute(attributes, "Is Calculated", attr.getIsCalculated() != null ? attr.getIsCalculated().toString() : null);
-        addAttribute(attributes, "Source DataSource ID", attr.getSourceDatasourceId());
-        addAttribute(attributes, "Source DataSource Name", attr.getSourceDatasourceName());
-        addAttribute(attributes, "Source Column Name", attr.getSourceColumnName());
-        addAttribute(attributes, "Source Table Name", attr.getSourceTableName());
-        addAttribute(attributes, "Site ID", attr.getSiteId());
-        addAttribute(attributes, "Worksheet ID", attr.getWorksheetId());
 
         // Add relations to parent worksheet and source data source
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
@@ -862,8 +856,8 @@ public class CollibraIngestionService {
                     // Batch lookup upstream report attributes to avoid N+1 query problem
                     List<ReportAttribute> upstreamAttrs = reportAttributeRepository.findByAssetIdIn(upstreamFieldIds);
                     for (ReportAttribute upstreamAttr : upstreamAttrs) {
-                        String upstreamIdentifier = CollibraAsset.createIdentifierName(
-                            upstreamAttr.getAssetId(), upstreamAttr.getName());
+                        String upstreamIdentifier = CollibraAsset.createReportAttributeIdentifierName(
+                            upstreamAttr.getSiteId(), upstreamAttr.getAssetId(), upstreamAttr.getName());
                         addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
                             upstreamIdentifier,
                             collibraConfig.getReportAttributeDomainName(), 
@@ -1194,7 +1188,8 @@ public class CollibraIngestionService {
 
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
-                .map(attr -> CollibraAsset.createIdentifierName(attr.getAssetId(), attr.getName()))
+                .map(attr -> CollibraAsset.createReportAttributeIdentifierName(
+                    attr.getSiteId(), attr.getAssetId(), attr.getName()))
                 .toList();
 
         final int finalSkipped = skipped;
