@@ -56,7 +56,7 @@ public class WorkbookController {
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<TableauWorkbook>> getWorkbooksBySiteId(
             @Parameter(description = "Tableau Site ID")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         return ResponseEntity.ok(workbookService.getActiveWorkbooksBySiteId(siteId));
     }
 
@@ -71,7 +71,7 @@ public class WorkbookController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauWorkbook> getWorkbookById(
             @Parameter(description = "Database ID of the workbook")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(workbookService.getWorkbookById(id));
     }
 
@@ -114,7 +114,7 @@ public class WorkbookController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteWorkbook(
             @Parameter(description = "Database ID of the workbook to delete")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         workbookService.softDeleteWorkbookAndChildren(id);
         return ResponseEntity.ok().build();
     }
@@ -145,7 +145,7 @@ public class WorkbookController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestWorkbookToCollibra(
             @Parameter(description = "Database ID of the workbook")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestWorkbookToCollibra(id).block();
         return ResponseEntity.ok(result);
     }

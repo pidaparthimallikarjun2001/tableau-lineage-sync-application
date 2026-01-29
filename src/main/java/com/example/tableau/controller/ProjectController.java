@@ -56,7 +56,7 @@ public class ProjectController {
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<TableauProject>> getProjectsBySiteId(
             @Parameter(description = "Tableau Site ID")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         return ResponseEntity.ok(projectService.getActiveProjectsBySiteId(siteId));
     }
 
@@ -71,7 +71,7 @@ public class ProjectController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauProject> getProjectById(
             @Parameter(description = "Database ID of the project")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(projectService.getProjectById(id));
     }
 
@@ -114,7 +114,7 @@ public class ProjectController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteProject(
             @Parameter(description = "Database ID of the project to delete")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         projectService.softDeleteProjectAndChildren(id);
         return ResponseEntity.ok().build();
     }
@@ -146,7 +146,7 @@ public class ProjectController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestProjectToCollibra(
             @Parameter(description = "Database ID of the project")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestProjectToCollibra(id).block();
         return ResponseEntity.ok(result);
     }

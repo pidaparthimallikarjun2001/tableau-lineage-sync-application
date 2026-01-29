@@ -56,7 +56,7 @@ public class ReportAttributeController {
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<ReportAttribute>> getReportAttributesBySiteId(
             @Parameter(description = "Tableau Site ID")
-            @PathVariable String siteId) {
+            @PathVariable("siteId") String siteId) {
         return ResponseEntity.ok(reportAttributeService.getActiveReportAttributesBySiteId(siteId));
     }
 
@@ -83,7 +83,7 @@ public class ReportAttributeController {
     @GetMapping("/{id}")
     public ResponseEntity<ReportAttribute> getReportAttributeById(
             @Parameter(description = "Database ID of the report attribute")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(reportAttributeService.getReportAttributeById(id));
     }
 
@@ -143,7 +143,7 @@ public class ReportAttributeController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestReportAttributeToCollibra(
             @Parameter(description = "Database ID of the report attribute")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestReportAttributeToCollibra(id).block();
         return ResponseEntity.ok(result);
     }

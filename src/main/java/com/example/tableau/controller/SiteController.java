@@ -60,7 +60,7 @@ public class SiteController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauSite> getSiteById(
             @Parameter(description = "Database primary key ID (e.g., 1, 2, 3). NOT the Tableau asset ID (LUID).")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(siteService.getSiteById(id));
     }
 
@@ -76,7 +76,7 @@ public class SiteController {
     @GetMapping("/asset/{assetId}")
     public ResponseEntity<TableauSite> getSiteByAssetId(
             @Parameter(description = "Tableau asset ID (LUID) of the site")
-            @PathVariable String assetId) {
+            @PathVariable("assetId") String assetId) {
         return ResponseEntity.ok(
             siteService.getSiteByAssetId(assetId)
                 .orElseThrow(() -> new ResourceNotFoundException("Site with asset ID", assetId))
@@ -122,7 +122,7 @@ public class SiteController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteSite(
             @Parameter(description = "Database primary key ID of the site to delete")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         siteService.softDeleteSiteAndChildren(id);
         return ResponseEntity.ok().build();
     }
@@ -153,7 +153,7 @@ public class SiteController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestSiteToCollibra(
             @Parameter(description = "Database ID of the site")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestSiteToCollibra(id).block();
         return ResponseEntity.ok(result);
     }

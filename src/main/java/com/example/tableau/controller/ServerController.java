@@ -58,7 +58,7 @@ public class ServerController {
     @GetMapping("/{id}")
     public ResponseEntity<TableauServer> getServerById(
             @Parameter(description = "Database ID of the server")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         return ResponseEntity.ok(serverService.getServerById(id));
     }
 
@@ -101,7 +101,7 @@ public class ServerController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> softDeleteServer(
             @Parameter(description = "Database ID of the server to delete")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         serverService.softDeleteServerAndChildren(id);
         return ResponseEntity.ok().build();
     }
@@ -132,7 +132,7 @@ public class ServerController {
     @PostMapping("/{id}/ingest-to-collibra")
     public ResponseEntity<CollibraIngestionResult> ingestServerToCollibra(
             @Parameter(description = "Database ID of the server")
-            @PathVariable Long id) {
+            @PathVariable("id") Long id) {
         CollibraIngestionResult result = collibraIngestionService.ingestServerToCollibra(id).block();
         return ResponseEntity.ok(result);
     }
