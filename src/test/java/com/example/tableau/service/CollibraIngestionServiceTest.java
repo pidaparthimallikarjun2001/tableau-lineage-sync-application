@@ -1259,4 +1259,70 @@ class CollibraIngestionServiceTest {
                 .lastUpdatedTimestamp(LocalDateTime.now())
                 .build();
     }
+
+    // ======================== Report Attribute Ingestion Tests ========================
+
+    @Test
+    void testIngestReportAttributesToCollibra_UsesEagerFetchMethod() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Create test data with worksheet relationship
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-1", "Test Attribute", "site-1", StatusFlag.NEW);
+        reportAttribute.setWorksheetId("ws-1");
+
+        // Use findAllWithRelations which eagerly fetches relationships
+        when(reportAttributeRepository.findAllWithRelations()).thenReturn(List.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenReturn(Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0)));
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributesToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+        assertEquals(1, result.getTotalProcessed());
+        // Verify that findAllWithRelations was called (not findAll)
+        verify(reportAttributeRepository).findAllWithRelations();
+        verify(reportAttributeRepository, never()).findAll();
+    }
+
+    @Test
+    void testReportAttributeIdentifierIncludesWorksheetId() {
+        when(collibraClient.isConfigured()).thenReturn(true);
+        when(collibraConfig.getCommunityName()).thenReturn("Tableau Technology");
+        when(collibraConfig.getReportAttributeDomainName()).thenReturn("Tableau Report Attributes");
+
+        // Create test data with worksheet ID
+        ReportAttribute reportAttribute = createTestReportAttribute("ra-1", "Test Attribute", "site-1", StatusFlag.NEW);
+        reportAttribute.setWorksheetId("ws-123");
+
+        when(reportAttributeRepository.findAllWithRelations()).thenReturn(List.of(reportAttribute));
+        when(collibraClient.importAssets(anyList(), eq("ReportAttribute")))
+                .thenAnswer(invocation -> {
+                    List<CollibraAsset> assets = invocation.getArgument(0);
+                    assertFalse(assets.isEmpty(), "Should have at least one asset");
+                    
+                    CollibraAsset asset = assets.get(0);
+                    String identifierName = asset.getIdentifier().getName();
+                    
+                    // Verify identifier includes siteId, worksheetId and assetId
+                    // Format: siteid > worksheetid > assetid
+                    assertTrue(identifierName.contains("site-1"), 
+                        "Identifier should contain siteId");
+                    assertTrue(identifierName.contains("ws-123"), 
+                        "Identifier should contain worksheetId");
+                    assertTrue(identifierName.contains("ra-1"), 
+                        "Identifier should contain assetId");
+                    assertEquals("site-1 > ws-123 > ra-1", identifierName,
+                        "Identifier should be in format: siteid > worksheetid > assetid");
+                    
+                    return Mono.just(CollibraIngestionResult.success("ReportAttribute", 1, 1, 0, 0, 0));
+                });
+
+        CollibraIngestionResult result = ingestionService.ingestReportAttributesToCollibra().block();
+
+        assertNotNull(result);
+        assertTrue(result.isSuccess());
+    }
 }
