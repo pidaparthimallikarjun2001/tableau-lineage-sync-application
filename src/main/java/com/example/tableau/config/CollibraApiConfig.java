@@ -66,6 +66,7 @@ public class CollibraApiConfig {
     private int readTimeout;
 
     @Value("${collibra.batch.size:1000}")
+    @jakarta.validation.constraints.Min(value = 1, message = "Batch size must be at least 1")
     private int batchSize;
 
     public String getBaseUrl() {

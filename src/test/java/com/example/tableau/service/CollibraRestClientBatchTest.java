@@ -217,7 +217,27 @@ class CollibraRestClientBatchTest {
         // Verify the result indicates failure
         assertNotNull(result);
         assertFalse(result.isSuccess());
-        assertTrue(result.getMessage().contains("500") || result.getMessage().contains("error"));
+        assertTrue(result.getMessage().contains("Batch") || result.getMessage().contains("500"));
+        // Processing stops after first batch succeeds and second fails
+        // The error handler adds the failed batch size, so total = 10 (first) + 5 (second failed)
+        assertTrue(result.getTotalProcessed() >= 10, "Should have processed at least the first batch");
+        // First batch was successful, so we should have created 10 assets
+        assertEquals(10, result.getAssetsCreated());
+    }
+
+    @Test
+    void testImportAssets_InvalidBatchSize() {
+        List<CollibraAsset> assets = createTestAssets(5);
+
+        // Test with zero batch size
+        assertThrows(IllegalArgumentException.class, () -> {
+            collibraClient.importAssets(assets, "TestAsset", 0).block();
+        });
+
+        // Test with negative batch size
+        assertThrows(IllegalArgumentException.class, () -> {
+            collibraClient.importAssets(assets, "TestAsset", -5).block();
+        });
     }
 
     /**
