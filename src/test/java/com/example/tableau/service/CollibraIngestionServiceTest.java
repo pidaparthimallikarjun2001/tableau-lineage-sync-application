@@ -368,9 +368,17 @@ class CollibraIngestionServiceTest {
 
     @Test
     void testWorksheetIdentifierNameFormat() {
-        // Test that worksheet identifier name follows format: siteid > worksheetid
-        String identifierName = CollibraAsset.createWorksheetIdentifierName("site-123", "worksheet-789", "My Worksheet");
-        assertEquals("site-123 > worksheet-789", identifierName);
+        // Test that worksheet identifier name follows format: siteid > workbookid > worksheetid
+        // This ensures uniqueness when same worksheet name exists in different workbooks
+        String identifierName = CollibraAsset.createWorksheetIdentifierName("site-123", "workbook-456", "worksheet-789", "My Worksheet");
+        assertEquals("site-123 > workbook-456 > worksheet-789", identifierName);
+    }
+
+    @Test
+    void testWorksheetIdentifierNameWithNullWorkbook() {
+        // Test that worksheet identifier handles null workbook gracefully
+        String identifierName = CollibraAsset.createWorksheetIdentifierName("site-123", null, "worksheet-789", "My Worksheet");
+        assertEquals("site-123 > unknown > worksheet-789", identifierName);
     }
 
     @Test
@@ -504,8 +512,9 @@ class CollibraIngestionServiceTest {
                     assertEquals(1, assets.size());
                     
                     CollibraAsset asset = assets.get(0);
-                    // Verify identifier format: siteid > worksheetid
-                    assertEquals("site-1 > worksheet-1", asset.getIdentifier().getName());
+                    // Verify identifier format: siteid > workbookid > worksheetid
+                    // This ensures uniqueness when same worksheet name exists in different workbooks
+                    assertEquals("site-1 > workbook-1 > worksheet-1", asset.getIdentifier().getName());
                     
                     // Verify no attributes (should be null or empty)
                     if (asset.getAttributes() != null) {

@@ -862,8 +862,11 @@ public class CollibraIngestionService {
 
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
-                .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
-                    worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                .map(worksheet -> {
+                    String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
+                    return CollibraAsset.createWorksheetIdentifierName(
+                        worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
+                })
                 .toList();
 
         final int finalSkipped = skipped;
@@ -916,8 +919,10 @@ public class CollibraIngestionService {
     }
 
     private CollibraAsset mapWorksheetToCollibraAsset(TableauWorksheet worksheet) {
+        // Get workbookId for unique identifier - worksheets need workbook context for uniqueness
+        String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
         String identifierName = CollibraAsset.createWorksheetIdentifierName(
-            worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
+            worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
         
         // No attributes for Tableau Worksheet as per requirements
 
@@ -1192,8 +1197,9 @@ public class CollibraIngestionService {
         // 0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE - Tableau Worksheet contains Tableau Report Attribute
         if (attr.getWorksheet() != null) {
             TableauWorksheet worksheet = attr.getWorksheet();
+            String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
             String worksheetName = CollibraAsset.createWorksheetIdentifierName(
-                worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
+                worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
             addRelation(relations, "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
         }
@@ -1482,8 +1488,11 @@ public class CollibraIngestionService {
         // Collect identifiers for deferred deletion
         if (!toDelete.isEmpty()) {
             List<String> identifiersToDelete = toDelete.stream()
-                    .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
-                        worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                    .map(worksheet -> {
+                        String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
+                        return CollibraAsset.createWorksheetIdentifierName(
+                            worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
+                    })
                     .toList();
             deletionList.add(new DeletionInfo(identifiersToDelete, 
                     collibraConfig.getWorksheetDomainName(), 
@@ -1847,8 +1856,11 @@ public class CollibraIngestionService {
 
         // Build list of identifiers for assets to delete
         List<String> identifiersToDelete = toDelete.stream()
-                .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
-                    worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                .map(worksheet -> {
+                    String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
+                    return CollibraAsset.createWorksheetIdentifierName(
+                        worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
+                })
                 .toList();
 
         final int finalSkipped = skipped;
@@ -2142,8 +2154,11 @@ public class CollibraIngestionService {
         // Collect identifiers for deferred deletion
         if (!toDelete.isEmpty()) {
             List<String> identifiersToDelete = toDelete.stream()
-                    .map(worksheet -> CollibraAsset.createWorksheetIdentifierName(
-                        worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName()))
+                    .map(worksheet -> {
+                        String workbookId = worksheet.getWorkbook() != null ? worksheet.getWorkbook().getAssetId() : null;
+                        return CollibraAsset.createWorksheetIdentifierName(
+                            worksheet.getSiteId(), workbookId, worksheet.getAssetId(), worksheet.getName());
+                    })
                     .toList();
             deletionList.add(new DeletionInfo(identifiersToDelete, 
                     collibraConfig.getWorksheetDomainName(), 

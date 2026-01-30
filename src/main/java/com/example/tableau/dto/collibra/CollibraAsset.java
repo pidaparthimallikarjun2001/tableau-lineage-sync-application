@@ -96,8 +96,30 @@ public class CollibraAsset {
     }
 
     /**
-     * Creates an identifier name for worksheet assets in the format: siteid > worksheetid
+     * Creates an identifier name for worksheet assets in the format: siteid > workbookid > worksheetid
+     * The workbookId is required because worksheet IDs (which are often just the worksheet name in Tableau)
+     * are not unique across different workbooks within the same site, so the identifier must include
+     * workbookId to ensure uniqueness.
+     * 
+     * @param siteId the site ID
+     * @param workbookId the workbook ID (parent workbook)
+     * @param assetId the worksheet asset ID
+     * @param assetName the asset name (reserved for future use, not currently used in identifier)
+     * @return the identifier name
      */
+    public static String createWorksheetIdentifierName(String siteId, String workbookId, String assetId, String assetName) {
+        String safeSiteId = siteId != null ? siteId : "unknown";
+        String safeWorkbookId = workbookId != null ? workbookId : "unknown";
+        String safeAssetId = assetId != null ? assetId : "unknown";
+        return safeSiteId + " > " + safeWorkbookId + " > " + safeAssetId;
+    }
+
+    /**
+     * @deprecated Use createWorksheetIdentifierName(siteId, workbookId, assetId, assetName) instead.
+     * This method is kept for backward compatibility but produces non-unique identifiers
+     * when the same worksheet name exists in multiple workbooks.
+     */
+    @Deprecated
     public static String createWorksheetIdentifierName(String siteId, String assetId, String assetName) {
         String safeSiteId = siteId != null ? siteId : "unknown";
         String safeAssetId = assetId != null ? assetId : "unknown";
