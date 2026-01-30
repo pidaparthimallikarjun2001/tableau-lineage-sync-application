@@ -599,13 +599,25 @@ public class TableauGraphQLClient {
                         JsonNode sheetFieldInstances = sheet.path("sheetFieldInstances");
                         JsonNode upstreamFields = sheet.path("upstreamFields");
                         
+                        // Create a map of upstream fields by ID for quick lookup
+                        Map<String, JsonNode> upstreamFieldsMap = new HashMap<>();
+                        if (upstreamFields.isArray()) {
+                            for (JsonNode upstreamField : upstreamFields) {
+                                String fieldId = upstreamField.path("id").asText();
+                                if (!fieldId.isEmpty()) {
+                                    upstreamFieldsMap.put(fieldId, upstreamField);
+                                }
+                            }
+                        }
+                        
                         if (sheetFieldInstances.isArray()) {
                             for (JsonNode fieldInstance : sheetFieldInstances) {
                                 // Create an enhanced object that includes sheet context
                                 Map<String, Object> enhancedInstance = new HashMap<>();
                                 
                                 // Copy field instance properties
-                                enhancedInstance.put("id", fieldInstance.path("id").asText());
+                                String fieldInstanceId = fieldInstance.path("id").asText();
+                                enhancedInstance.put("id", fieldInstanceId);
                                 enhancedInstance.put("name", fieldInstance.path("name").asText());
                                 
                                 // Add role field - always include even if null to ensure field is present
@@ -646,9 +658,16 @@ public class TableauGraphQLClient {
                                 }
                                 enhancedInstance.put("sheet", sheetContext);
                                 
-                                // Add upstream fields from the sheet level
-                                if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
-                                    enhancedInstance.put("upstreamFields", mapper.convertValue(upstreamFields, List.class));
+                                // Match this field instance with its corresponding upstream field by ID
+                                JsonNode matchingUpstreamField = upstreamFieldsMap.get(fieldInstanceId);
+                                if (matchingUpstreamField != null) {
+                                    // Add only the matching upstream field, not all upstream fields
+                                    List<Object> matchingUpstreamFields = new ArrayList<>();
+                                    matchingUpstreamFields.add(mapper.convertValue(matchingUpstreamField, Map.class));
+                                    enhancedInstance.put("upstreamFields", matchingUpstreamFields);
+                                } else {
+                                    // No matching upstream field found, add empty array
+                                    enhancedInstance.put("upstreamFields", new ArrayList<>());
                                 }
                                 
                                 try {
