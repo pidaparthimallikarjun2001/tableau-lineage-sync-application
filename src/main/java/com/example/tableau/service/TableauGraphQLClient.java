@@ -599,13 +599,28 @@ public class TableauGraphQLClient {
                         JsonNode sheetFieldInstances = sheet.path("sheetFieldInstances");
                         JsonNode upstreamFields = sheet.path("upstreamFields");
                         
+                        // Create a map of upstream fields by ID for quick lookup
+                        // In Tableau's data model, each sheetFieldInstance represents a field used in a sheet,
+                        // and its ID corresponds to an upstream field's ID. This mapping ensures each field
+                        // instance gets its own correct calculation logic and metadata.
+                        Map<String, JsonNode> upstreamFieldsMap = new HashMap<>();
+                        if (upstreamFields.isArray()) {
+                            for (JsonNode upstreamField : upstreamFields) {
+                                String fieldId = upstreamField.path("id").asText();
+                                if (!fieldId.isEmpty()) {
+                                    upstreamFieldsMap.put(fieldId, upstreamField);
+                                }
+                            }
+                        }
+                        
                         if (sheetFieldInstances.isArray()) {
                             for (JsonNode fieldInstance : sheetFieldInstances) {
                                 // Create an enhanced object that includes sheet context
                                 Map<String, Object> enhancedInstance = new HashMap<>();
                                 
                                 // Copy field instance properties
-                                enhancedInstance.put("id", fieldInstance.path("id").asText());
+                                String fieldInstanceId = fieldInstance.path("id").asText();
+                                enhancedInstance.put("id", fieldInstanceId);
                                 enhancedInstance.put("name", fieldInstance.path("name").asText());
                                 
                                 // Add role field - always include even if null to ensure field is present
@@ -646,9 +661,22 @@ public class TableauGraphQLClient {
                                 }
                                 enhancedInstance.put("sheet", sheetContext);
                                 
-                                // Add upstream fields from the sheet level
-                                if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
-                                    enhancedInstance.put("upstreamFields", mapper.convertValue(upstreamFields, List.class));
+                                // Match this field instance with its corresponding upstream field by ID
+                                // Each field instance ID should match one upstream field's ID
+                                if (fieldInstanceId != null && !fieldInstanceId.isEmpty()) {
+                                    JsonNode matchingUpstreamField = upstreamFieldsMap.get(fieldInstanceId);
+                                    if (matchingUpstreamField != null) {
+                                        // Add only the matching upstream field, not all upstream fields
+                                        List<Object> matchingUpstreamFields = new ArrayList<>();
+                                        matchingUpstreamFields.add(mapper.convertValue(matchingUpstreamField, Map.class));
+                                        enhancedInstance.put("upstreamFields", matchingUpstreamFields);
+                                    } else {
+                                        // No matching upstream field found, add empty array
+                                        enhancedInstance.put("upstreamFields", new ArrayList<>());
+                                    }
+                                } else {
+                                    // Field instance ID is empty or null, add empty array
+                                    enhancedInstance.put("upstreamFields", new ArrayList<>());
                                 }
                                 
                                 try {
