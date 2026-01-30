@@ -357,7 +357,7 @@ None (Server is the root of the hierarchy)
   },
   "displayName": "Sales Overview",
   "identifier": {
-    "name": "ws-222mno > Sales Overview",
+    "name": "site-123abc > wb-111jkl > ws-222mno",
     "domain": {
       "name": "Tableau Worksheets",
       "community": {
@@ -365,20 +365,8 @@ None (Server is the root of the hierarchy)
       }
     }
   },
-  "attributes": {
-    "Owner": [
-      {
-        "value": "john.doe@company.com"
-      }
-    ],
-    "Site ID": [
-      {
-        "value": "site-123abc"
-      }
-    ]
-  },
   "relations": {
-    "relationid:SOURCE": [
+    "0195fd0b-f14f-7e72-a382-750d4f3a704e:SOURCE": [
       {
         "domain": {
           "name": "Tableau Workbooks",
@@ -386,16 +374,20 @@ None (Server is the root of the hierarchy)
             "name": "Tableau Technology"
           }
         },
-        "name": "wb-111jkl > Sales Dashboard"
+        "name": "site-123abc > wb-111jkl"
       }
     ]
   }
 }
 ```
 
+### Identifier Format
+The worksheet identifier uses the format: `{siteId} > {workbookId} > {worksheetId}`
+
+This format ensures uniqueness because worksheet IDs (which are often just the worksheet name in Tableau) are not unique across different workbooks within the same site. Including the workbookId guarantees each worksheet has a unique identifier.
+
 ### Attributes to Configure in Collibra
-- **Owner** (String) - Owner username/email
-- **Site ID** (String) - Site identifier for composite uniqueness
+- No custom attributes are required for Tableau Worksheet (as per requirements)
 
 ### Relations to Configure in Collibra
 - **relationid:SOURCE** - Points to parent Workbook
@@ -663,7 +655,7 @@ None (Server is the root of the hierarchy)
             "name": "Tableau Technology"
           }
         },
-        "name": "ws-222mno > Sales Overview"
+        "name": "site-123abc > wb-111jkl > ws-222mno"
       }
     ],
     "01966232-fc24-7372-b280-9f1140904aa0:SOURCE": [
@@ -763,7 +755,7 @@ None (Server is the root of the hierarchy)
             "name": "Tableau Technology"
           }
         },
-        "name": "ws-222mno > Sales Overview"
+        "name": "site-123abc > wb-111jkl > ws-222mno"
       }
     ]
   }
