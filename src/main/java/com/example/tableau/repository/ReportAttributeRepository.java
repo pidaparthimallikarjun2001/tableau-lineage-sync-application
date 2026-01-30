@@ -1,6 +1,7 @@
 package com.example.tableau.repository;
 
 import com.example.tableau.entity.ReportAttribute;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -31,6 +32,10 @@ public interface ReportAttributeRepository extends JpaRepository<ReportAttribute
 
     List<ReportAttribute> findByStatusFlagNot(StatusFlag statusFlag);
 
+    List<ReportAttribute> findByCollibraSyncStatus(CollibraSyncStatus collibraSyncStatus);
+
+    List<ReportAttribute> findByCollibraSyncStatusIn(List<CollibraSyncStatus> collibraSyncStatuses);
+
     List<ReportAttribute> findByIsCalculatedTrue();
 
     @Modifying
@@ -41,11 +46,26 @@ public interface ReportAttributeRepository extends JpaRepository<ReportAttribute
     @Query("UPDATE ReportAttribute r SET r.statusFlag = :statusFlag WHERE r.worksheet.id = :worksheetDbId")
     int updateStatusFlagByWorksheetDbId(@Param("worksheetDbId") Long worksheetDbId, @Param("statusFlag") StatusFlag statusFlag);
 
+    @Modifying
+    @Query("UPDATE ReportAttribute r SET r.collibraSyncStatus = :collibraSyncStatus WHERE r.assetId = :assetId AND r.worksheetId = :worksheetId AND r.siteId = :siteId")
+    int updateCollibraSyncStatusByAssetIdAndWorksheetIdAndSiteId(@Param("assetId") String assetId, @Param("worksheetId") String worksheetId, @Param("siteId") String siteId, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
+    @Modifying
+    @Query("UPDATE ReportAttribute r SET r.collibraSyncStatus = :collibraSyncStatus WHERE r.id = :id")
+    int updateCollibraSyncStatusById(@Param("id") Long id, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
     @Query("SELECT r FROM ReportAttribute r WHERE r.statusFlag != 'DELETED'")
     List<ReportAttribute> findAllActive();
 
     @Query("SELECT r FROM ReportAttribute r WHERE r.siteId = :siteId AND r.statusFlag != 'DELETED'")
     List<ReportAttribute> findAllActiveBySiteId(@Param("siteId") String siteId);
+
+    /**
+     * Find all report attributes that need to be synced to Collibra.
+     * Returns report attributes with collibraSyncStatus of NOT_SYNCED, PENDING_SYNC, PENDING_UPDATE, or PENDING_DELETE.
+     */
+    @Query("SELECT r FROM ReportAttribute r WHERE r.collibraSyncStatus IN ('NOT_SYNCED', 'PENDING_SYNC', 'PENDING_UPDATE', 'PENDING_DELETE') AND r.statusFlag != 'DELETED'")
+    List<ReportAttribute> findAllPendingCollibraSync();
 
     /**
      * Find all report attributes for a specific site with their worksheet and dataSource relationships eagerly loaded.

@@ -1,6 +1,7 @@
 package com.example.tableau.repository;
 
 import com.example.tableau.entity.TableauDataSource;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.SourceType;
 import com.example.tableau.enums.StatusFlag;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,6 +31,10 @@ public interface TableauDataSourceRepository extends JpaRepository<TableauDataSo
 
     List<TableauDataSource> findByStatusFlagNot(StatusFlag statusFlag);
 
+    List<TableauDataSource> findByCollibraSyncStatus(CollibraSyncStatus collibraSyncStatus);
+
+    List<TableauDataSource> findByCollibraSyncStatusIn(List<CollibraSyncStatus> collibraSyncStatuses);
+
     List<TableauDataSource> findByIsPublishedTrue();
 
     List<TableauDataSource> findByIsCertifiedTrue();
@@ -42,11 +47,26 @@ public interface TableauDataSourceRepository extends JpaRepository<TableauDataSo
     @Query("UPDATE TableauDataSource d SET d.statusFlag = :statusFlag WHERE d.workbook.id = :workbookDbId")
     int updateStatusFlagByWorkbookDbId(@Param("workbookDbId") Long workbookDbId, @Param("statusFlag") StatusFlag statusFlag);
 
+    @Modifying
+    @Query("UPDATE TableauDataSource d SET d.collibraSyncStatus = :collibraSyncStatus WHERE d.assetId = :assetId AND d.siteId = :siteId")
+    int updateCollibraSyncStatusByAssetIdAndSiteId(@Param("assetId") String assetId, @Param("siteId") String siteId, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
+    @Modifying
+    @Query("UPDATE TableauDataSource d SET d.collibraSyncStatus = :collibraSyncStatus WHERE d.id = :id")
+    int updateCollibraSyncStatusById(@Param("id") Long id, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
     @Query("SELECT d FROM TableauDataSource d WHERE d.statusFlag != 'DELETED'")
     List<TableauDataSource> findAllActive();
 
     @Query("SELECT d FROM TableauDataSource d WHERE d.siteId = :siteId AND d.statusFlag != 'DELETED'")
     List<TableauDataSource> findAllActiveBySiteId(@Param("siteId") String siteId);
+
+    /**
+     * Find all data sources that need to be synced to Collibra.
+     * Returns data sources with collibraSyncStatus of NOT_SYNCED, PENDING_SYNC, PENDING_UPDATE, or PENDING_DELETE.
+     */
+    @Query("SELECT d FROM TableauDataSource d WHERE d.collibraSyncStatus IN ('NOT_SYNCED', 'PENDING_SYNC', 'PENDING_UPDATE', 'PENDING_DELETE') AND d.statusFlag != 'DELETED'")
+    List<TableauDataSource> findAllPendingCollibraSync();
 
     boolean existsByAssetIdAndSiteId(String assetId, String siteId);
 }

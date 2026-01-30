@@ -1,6 +1,7 @@
 package com.example.tableau.repository;
 
 import com.example.tableau.entity.TableauSite;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -24,6 +25,10 @@ public interface TableauSiteRepository extends JpaRepository<TableauSite, Long> 
 
     List<TableauSite> findByStatusFlagNot(StatusFlag statusFlag);
 
+    List<TableauSite> findByCollibraSyncStatus(CollibraSyncStatus collibraSyncStatus);
+
+    List<TableauSite> findByCollibraSyncStatusIn(List<CollibraSyncStatus> collibraSyncStatuses);
+
     @Modifying
     @Query("UPDATE TableauSite s SET s.statusFlag = :statusFlag WHERE s.assetId = :assetId")
     int updateStatusFlagByAssetId(@Param("assetId") String assetId, @Param("statusFlag") StatusFlag statusFlag);
@@ -31,6 +36,14 @@ public interface TableauSiteRepository extends JpaRepository<TableauSite, Long> 
     @Modifying
     @Query("UPDATE TableauSite s SET s.statusFlag = :statusFlag WHERE s.server.id = :serverId")
     int updateStatusFlagByServerId(@Param("serverId") Long serverId, @Param("statusFlag") StatusFlag statusFlag);
+
+    @Modifying
+    @Query("UPDATE TableauSite s SET s.collibraSyncStatus = :collibraSyncStatus WHERE s.assetId = :assetId")
+    int updateCollibraSyncStatusByAssetId(@Param("assetId") String assetId, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
+    @Modifying
+    @Query("UPDATE TableauSite s SET s.collibraSyncStatus = :collibraSyncStatus WHERE s.id = :id")
+    int updateCollibraSyncStatusById(@Param("id") Long id, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
 
     @Query("SELECT s FROM TableauSite s WHERE s.statusFlag != 'DELETED'")
     List<TableauSite> findAllActive();
@@ -40,6 +53,13 @@ public interface TableauSiteRepository extends JpaRepository<TableauSite, Long> 
 
     @Query("SELECT DISTINCT s FROM TableauSite s LEFT JOIN FETCH s.server")
     List<TableauSite> findAllWithServer();
+
+    /**
+     * Find all sites that need to be synced to Collibra.
+     * Returns sites with collibraSyncStatus of NOT_SYNCED, PENDING_SYNC, PENDING_UPDATE, or PENDING_DELETE.
+     */
+    @Query("SELECT s FROM TableauSite s WHERE s.collibraSyncStatus IN ('NOT_SYNCED', 'PENDING_SYNC', 'PENDING_UPDATE', 'PENDING_DELETE') AND s.statusFlag != 'DELETED'")
+    List<TableauSite> findAllPendingCollibraSync();
 
     boolean existsByAssetId(String assetId);
 }

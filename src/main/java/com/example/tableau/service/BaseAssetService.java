@@ -1,6 +1,7 @@
 package com.example.tableau.service;
 
 import com.example.tableau.dto.IngestionResult;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
@@ -68,6 +69,45 @@ public abstract class BaseAssetService {
             return StatusFlag.ACTIVE;
         }
         return currentStatus;
+    }
+
+    /**
+     * Determine the appropriate CollibraSyncStatus based on the new StatusFlag and current CollibraSyncStatus.
+     * This ensures that when an asset is updated or deleted in the database, the CollibraSyncStatus
+     * is updated to reflect that it needs to be re-synced to Collibra.
+     * 
+     * @param newStatusFlag the new status flag being set
+     * @param currentCollibraSyncStatus the current Collibra sync status
+     * @return the appropriate CollibraSyncStatus
+     */
+    protected CollibraSyncStatus determineCollibraSyncStatus(StatusFlag newStatusFlag, CollibraSyncStatus currentCollibraSyncStatus) {
+        if (currentCollibraSyncStatus == null) {
+            currentCollibraSyncStatus = CollibraSyncStatus.NOT_SYNCED;
+        }
+        
+        switch (newStatusFlag) {
+            case NEW:
+                // New assets start as NOT_SYNCED
+                return CollibraSyncStatus.NOT_SYNCED;
+            case UPDATED:
+                // If previously synced, mark as pending update; otherwise keep current status
+                if (currentCollibraSyncStatus == CollibraSyncStatus.SYNCED) {
+                    return CollibraSyncStatus.PENDING_UPDATE;
+                }
+                // If already NOT_SYNCED or PENDING_SYNC, it just needs initial sync
+                return currentCollibraSyncStatus;
+            case DELETED:
+                // If previously synced or pending update, mark as pending delete; otherwise keep current status
+                if (currentCollibraSyncStatus == CollibraSyncStatus.SYNCED || 
+                    currentCollibraSyncStatus == CollibraSyncStatus.PENDING_UPDATE) {
+                    return CollibraSyncStatus.PENDING_DELETE;
+                }
+                return currentCollibraSyncStatus;
+            case ACTIVE:
+            default:
+                // Active assets keep their current Collibra sync status
+                return currentCollibraSyncStatus;
+        }
     }
 
     /**

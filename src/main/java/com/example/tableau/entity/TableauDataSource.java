@@ -1,5 +1,6 @@
 package com.example.tableau.entity;
 
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.SourceType;
 import com.example.tableau.enums.StatusFlag;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -135,6 +136,16 @@ public class TableauDataSource {
     @Column(name = "status_flag", nullable = false, length = 20)
     @Builder.Default
     private StatusFlag statusFlag = StatusFlag.NEW;
+
+    /**
+     * Status flag for tracking synchronization with Collibra.
+     * Indicates whether this asset has been imported to Collibra and
+     * tracks if there are pending changes that need to be synchronized.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "collibra_sync_status", nullable = false, length = 20)
+    @Builder.Default
+    private CollibraSyncStatus collibraSyncStatus = CollibraSyncStatus.NOT_SYNCED;
 
     /**
      * Hash of metadata for change detection
