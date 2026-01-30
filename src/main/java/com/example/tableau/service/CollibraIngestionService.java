@@ -1185,7 +1185,7 @@ public class CollibraIngestionService {
         addAttribute(attributes, "Role in Report", capitalizeFieldRole(attr.getFieldRole()));
         addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
 
-        // Add relations to parent worksheet and upstream report attributes (for calculated fields)
+        // Add relation to parent worksheet
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         
         // Add relation to parent worksheet using the specified UUID
@@ -1196,40 +1196,6 @@ public class CollibraIngestionService {
                 worksheet.getSiteId(), worksheet.getAssetId(), worksheet.getName());
             addRelation(relations, "0195fd1e-47f7-7674-96eb-e91ff0ce71c4:SOURCE", worksheetName,
                     collibraConfig.getWorksheetDomainName(), collibraConfig.getCommunityName());
-        }
-
-        // Add derivation relations for calculated fields
-        // 01966232-fc24-7372-b280-9f1140904aa0:SOURCE - Tableau Report Attribute is derived from Tableau Report Attribute
-        if (Boolean.TRUE.equals(attr.getIsCalculated()) && attr.getLineageInfo() != null) {
-            try {
-                JsonNode lineageNode = objectMapper.readTree(attr.getLineageInfo());
-                JsonNode upstreamFields = lineageNode.path("upstreamFields");
-                
-                if (upstreamFields.isArray() && !upstreamFields.isEmpty()) {
-                    // Collect all upstream field IDs for batch lookup
-                    List<String> upstreamFieldIds = new ArrayList<>();
-                    for (JsonNode upstreamField : upstreamFields) {
-                        String upstreamFieldId = upstreamField.path("id").asText(null);
-                        if (upstreamFieldId != null) {
-                            upstreamFieldIds.add(upstreamFieldId);
-                        }
-                    }
-                    
-                    // Batch lookup upstream report attributes to avoid N+1 query problem
-                    List<ReportAttribute> upstreamAttrs = reportAttributeRepository.findByAssetIdIn(upstreamFieldIds);
-                    for (ReportAttribute upstreamAttr : upstreamAttrs) {
-                        String upstreamIdentifier = CollibraAsset.createReportAttributeIdentifierName(
-                            upstreamAttr.getSiteId(), upstreamAttr.getWorksheetId(), upstreamAttr.getAssetId(), upstreamAttr.getName());
-                        addRelation(relations, "01966232-fc24-7372-b280-9f1140904aa0:SOURCE", 
-                            upstreamIdentifier,
-                            collibraConfig.getReportAttributeDomainName(), 
-                            collibraConfig.getCommunityName());
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Failed to parse lineage info for report attribute {}: {}", 
-                    attr.getAssetId(), e.getMessage());
-            }
         }
 
         return CollibraAsset.builder()
