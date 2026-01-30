@@ -1185,7 +1185,7 @@ public class CollibraIngestionService {
         addAttribute(attributes, "Role in Report", capitalizeFieldRole(attr.getFieldRole()));
         addAttribute(attributes, "Calculation Rule", attr.getCalculationLogic());
 
-        // Add relations to parent worksheet and upstream report attributes (for calculated fields)
+        // Add relation to parent worksheet
         Map<String, List<CollibraRelationTarget>> relations = new HashMap<>();
         
         // Add relation to parent worksheet using the specified UUID
