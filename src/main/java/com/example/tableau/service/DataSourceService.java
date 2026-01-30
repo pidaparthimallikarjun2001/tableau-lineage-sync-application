@@ -164,6 +164,7 @@ public class DataSourceService extends BaseAssetService {
                 for (TableauDataSource ds : existingDs) {
                     if (!processedAssetIds.contains(ds.getAssetId())) {
                         ds.setStatusFlag(StatusFlag.DELETED);
+                        ds.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, ds.getCollibraSyncStatus()));
                         dataSourceRepository.save(ds);
                         deletedCount++;
                         log.info("Soft deleted data source: {}", ds.getName());
@@ -246,6 +247,7 @@ public class DataSourceService extends BaseAssetService {
                 // Use the status determined by determineStatusFlag method
                 if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
                     ds.setStatusFlag(newStatus);
+                    ds.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, ds.getCollibraSyncStatus()));
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;
@@ -330,6 +332,7 @@ public class DataSourceService extends BaseAssetService {
                 // Use the status determined by determineStatusFlag method
                 if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
                     ds.setStatusFlag(newStatus);
+                    ds.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, ds.getCollibraSyncStatus()));
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;
@@ -380,6 +383,7 @@ public class DataSourceService extends BaseAssetService {
                 ds.setDatabaseName(databaseName);
                 ds.setMetadataHash(newHash);
                 ds.setStatusFlag(StatusFlag.UPDATED);
+                ds.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, ds.getCollibraSyncStatus()));
                 dataSourceRepository.save(ds);
                 updatedCount++;
                 log.info("Updated custom SQL table: {}", name);
@@ -387,6 +391,7 @@ public class DataSourceService extends BaseAssetService {
                 // Use the status determined by determineStatusFlag method
                 if (ds.getStatusFlag() != newStatus && ds.getStatusFlag() != StatusFlag.DELETED) {
                     ds.setStatusFlag(newStatus);
+                    ds.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, ds.getCollibraSyncStatus()));
                     dataSourceRepository.save(ds);
                 }
                 unchangedCount++;
@@ -434,6 +439,7 @@ public class DataSourceService extends BaseAssetService {
         ds.setCalculatedFields(calculatedFields);
         ds.setMetadataHash(newHash);
         ds.setStatusFlag(StatusFlag.UPDATED);
+        ds.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, ds.getCollibraSyncStatus()));
         dataSourceRepository.save(ds);
     }
 
@@ -478,6 +484,7 @@ public class DataSourceService extends BaseAssetService {
         List<TableauDataSource> dataSources = dataSourceRepository.findByWorkbookDbId(workbookId);
         for (TableauDataSource ds : dataSources) {
             ds.setStatusFlag(StatusFlag.DELETED);
+            ds.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, ds.getCollibraSyncStatus()));
             dataSourceRepository.save(ds);
         }
     }

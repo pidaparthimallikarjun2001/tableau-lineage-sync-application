@@ -114,6 +114,7 @@ public class SiteService extends BaseAssetService {
                                     site.setSiteUrl(siteUrl);
                                     site.setMetadataHash(newHash);
                                     site.setStatusFlag(StatusFlag.UPDATED);
+                                    site.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, site.getCollibraSyncStatus()));
                                     if (server != null) {
                                         site.setServer(server);
                                     }
@@ -125,6 +126,7 @@ public class SiteService extends BaseAssetService {
                                     if (site.getStatusFlag() != newStatus && 
                                         site.getStatusFlag() != StatusFlag.DELETED) {
                                         site.setStatusFlag(newStatus);
+                                        site.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, site.getCollibraSyncStatus()));
                                         siteRepository.save(site);
                                     }
                                     unchangedCount++;
@@ -177,6 +179,7 @@ public class SiteService extends BaseAssetService {
         if (siteOpt.isPresent()) {
             TableauSite site = siteOpt.get();
             site.setStatusFlag(StatusFlag.DELETED);
+            site.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, site.getCollibraSyncStatus()));
             siteRepository.save(site);
             log.info("Soft deleted site: {} and cascading to children", site.getName());
             
