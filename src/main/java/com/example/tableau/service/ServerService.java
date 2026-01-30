@@ -101,6 +101,7 @@ public class ServerService extends BaseAssetService {
                                 server.setVersion(version + " (build " + build + ")");
                                 server.setMetadataHash(newHash);
                                 server.setStatusFlag(StatusFlag.UPDATED);
+                                server.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, server.getCollibraSyncStatus()));
                                 serverRepository.save(server);
                                 updatedCount = 1;
                                 log.info("Updated server: {}", name);
@@ -108,6 +109,7 @@ public class ServerService extends BaseAssetService {
                                 // Use the status determined by determineStatusFlag method
                                 if (server.getStatusFlag() != newStatus) {
                                     server.setStatusFlag(newStatus);
+                                    server.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, server.getCollibraSyncStatus()));
                                     serverRepository.save(server);
                                 }
                                 unchangedCount = 1;
@@ -149,6 +151,7 @@ public class ServerService extends BaseAssetService {
         if (serverOpt.isPresent()) {
             TableauServer server = serverOpt.get();
             server.setStatusFlag(StatusFlag.DELETED);
+            server.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, server.getCollibraSyncStatus()));
             serverRepository.save(server);
             log.info("Soft deleted server: {} and cascading to children", server.getName());
             

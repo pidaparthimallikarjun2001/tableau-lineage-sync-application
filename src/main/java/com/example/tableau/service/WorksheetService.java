@@ -121,6 +121,7 @@ public class WorksheetService extends BaseAssetService {
                                     worksheet.setName(name);
                                     worksheet.setMetadataHash(newHash);
                                     worksheet.setStatusFlag(StatusFlag.UPDATED);
+                                    worksheet.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, worksheet.getCollibraSyncStatus()));
                                     worksheet.setWorkbook(workbook);
                                     worksheetRepository.save(worksheet);
                                     updatedCount++;
@@ -130,6 +131,7 @@ public class WorksheetService extends BaseAssetService {
                                     if (worksheet.getStatusFlag() != newStatus && 
                                         worksheet.getStatusFlag() != StatusFlag.DELETED) {
                                         worksheet.setStatusFlag(newStatus);
+                                        worksheet.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, worksheet.getCollibraSyncStatus()));
                                         worksheetRepository.save(worksheet);
                                     }
                                     unchangedCount++;
@@ -181,6 +183,7 @@ public class WorksheetService extends BaseAssetService {
         if (worksheetOpt.isPresent()) {
             TableauWorksheet worksheet = worksheetOpt.get();
             worksheet.setStatusFlag(StatusFlag.DELETED);
+            worksheet.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, worksheet.getCollibraSyncStatus()));
             worksheetRepository.save(worksheet);
             log.info("Soft deleted worksheet: {} and cascading to children", worksheet.getName());
             

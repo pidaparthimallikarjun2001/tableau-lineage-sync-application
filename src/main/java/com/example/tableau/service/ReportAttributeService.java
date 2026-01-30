@@ -199,6 +199,7 @@ public class ReportAttributeService extends BaseAssetService {
                                     attr.setLineageInfo(lineageInfo);
                                     attr.setMetadataHash(newHash);
                                     attr.setStatusFlag(StatusFlag.UPDATED);
+                                    attr.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, attr.getCollibraSyncStatus()));
                                     attr.setWorksheet(worksheet);
                                     attr.setDataSource(dataSource);
                                     reportAttributeRepository.save(attr);
@@ -209,6 +210,7 @@ public class ReportAttributeService extends BaseAssetService {
                                     if (attr.getStatusFlag() != newStatus && 
                                         attr.getStatusFlag() != StatusFlag.DELETED) {
                                         attr.setStatusFlag(newStatus);
+                                        attr.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, attr.getCollibraSyncStatus()));
                                         reportAttributeRepository.save(attr);
                                     }
                                     unchangedCount++;
@@ -245,6 +247,7 @@ public class ReportAttributeService extends BaseAssetService {
                             String key = attr.getAssetId() + "|" + attr.getWorksheetId() + "|" + currentSiteId;
                             if (!processedKeys.contains(key)) {
                                 attr.setStatusFlag(StatusFlag.DELETED);
+                                attr.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, attr.getCollibraSyncStatus()));
                                 reportAttributeRepository.save(attr);
                                 deletedCount++;
                                 log.info("Soft deleted report attribute: {}", attr.getName());
@@ -272,6 +275,7 @@ public class ReportAttributeService extends BaseAssetService {
         List<ReportAttribute> attrs = reportAttributeRepository.findByWorksheetDbId(worksheetId);
         for (ReportAttribute attr : attrs) {
             attr.setStatusFlag(StatusFlag.DELETED);
+            attr.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, attr.getCollibraSyncStatus()));
             reportAttributeRepository.save(attr);
         }
     }

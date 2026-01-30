@@ -135,6 +135,7 @@ public class ProjectService extends BaseAssetService {
                                     project.setOwner(owner);
                                     project.setMetadataHash(newHash);
                                     project.setStatusFlag(StatusFlag.UPDATED);
+                                    project.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, project.getCollibraSyncStatus()));
                                     if (site != null) {
                                         project.setSite(site);
                                     }
@@ -146,6 +147,7 @@ public class ProjectService extends BaseAssetService {
                                     if (project.getStatusFlag() != newStatus && 
                                         project.getStatusFlag() != StatusFlag.DELETED) {
                                         project.setStatusFlag(newStatus);
+                                        project.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, project.getCollibraSyncStatus()));
                                         projectRepository.save(project);
                                     }
                                     unchangedCount++;
@@ -200,6 +202,7 @@ public class ProjectService extends BaseAssetService {
         if (projectOpt.isPresent()) {
             TableauProject project = projectOpt.get();
             project.setStatusFlag(StatusFlag.DELETED);
+            project.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, project.getCollibraSyncStatus()));
             projectRepository.save(project);
             log.info("Soft deleted project: {} and cascading to children", project.getName());
             

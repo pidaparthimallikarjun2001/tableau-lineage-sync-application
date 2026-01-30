@@ -142,6 +142,7 @@ public class WorkbookService extends BaseAssetService {
                                     workbook.setTableauUpdatedAt(updatedAt);
                                     workbook.setMetadataHash(newHash);
                                     workbook.setStatusFlag(StatusFlag.UPDATED);
+                                    workbook.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.UPDATED, workbook.getCollibraSyncStatus()));
                                     workbook.setProject(project);
                                     workbookRepository.save(workbook);
                                     updatedCount++;
@@ -151,6 +152,7 @@ public class WorkbookService extends BaseAssetService {
                                     if (workbook.getStatusFlag() != newStatus && 
                                         workbook.getStatusFlag() != StatusFlag.DELETED) {
                                         workbook.setStatusFlag(newStatus);
+                                        workbook.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, workbook.getCollibraSyncStatus()));
                                         workbookRepository.save(workbook);
                                     }
                                     unchangedCount++;
@@ -208,6 +210,7 @@ public class WorkbookService extends BaseAssetService {
         if (workbookOpt.isPresent()) {
             TableauWorkbook workbook = workbookOpt.get();
             workbook.setStatusFlag(StatusFlag.DELETED);
+            workbook.setCollibraSyncStatus(determineCollibraSyncStatus(StatusFlag.DELETED, workbook.getCollibraSyncStatus()));
             workbookRepository.save(workbook);
             log.info("Soft deleted workbook: {} and cascading to children", workbook.getName());
             
