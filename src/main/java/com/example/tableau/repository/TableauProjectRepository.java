@@ -1,6 +1,7 @@
 package com.example.tableau.repository;
 
 import com.example.tableau.entity.TableauProject;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -27,6 +28,10 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
 
     List<TableauProject> findByStatusFlagNot(StatusFlag statusFlag);
 
+    List<TableauProject> findByCollibraSyncStatus(CollibraSyncStatus collibraSyncStatus);
+
+    List<TableauProject> findByCollibraSyncStatusIn(List<CollibraSyncStatus> collibraSyncStatuses);
+
     @Modifying
     @Query("UPDATE TableauProject p SET p.statusFlag = :statusFlag WHERE p.assetId = :assetId AND p.siteId = :siteId")
     int updateStatusFlagByAssetIdAndSiteId(@Param("assetId") String assetId, @Param("siteId") String siteId, @Param("statusFlag") StatusFlag statusFlag);
@@ -35,11 +40,26 @@ public interface TableauProjectRepository extends JpaRepository<TableauProject, 
     @Query("UPDATE TableauProject p SET p.statusFlag = :statusFlag WHERE p.site.id = :siteDbId")
     int updateStatusFlagBySiteDbId(@Param("siteDbId") Long siteDbId, @Param("statusFlag") StatusFlag statusFlag);
 
+    @Modifying
+    @Query("UPDATE TableauProject p SET p.collibraSyncStatus = :collibraSyncStatus WHERE p.assetId = :assetId AND p.siteId = :siteId")
+    int updateCollibraSyncStatusByAssetIdAndSiteId(@Param("assetId") String assetId, @Param("siteId") String siteId, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
+    @Modifying
+    @Query("UPDATE TableauProject p SET p.collibraSyncStatus = :collibraSyncStatus WHERE p.id = :id")
+    int updateCollibraSyncStatusById(@Param("id") Long id, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
     @Query("SELECT p FROM TableauProject p WHERE p.statusFlag != 'DELETED'")
     List<TableauProject> findAllActive();
 
     @Query("SELECT p FROM TableauProject p WHERE p.siteId = :siteId AND p.statusFlag != 'DELETED'")
     List<TableauProject> findAllActiveBySiteId(@Param("siteId") String siteId);
+
+    /**
+     * Find all projects that need to be synced to Collibra.
+     * Returns projects with collibraSyncStatus of NOT_SYNCED, PENDING_SYNC, PENDING_UPDATE, or PENDING_DELETE.
+     */
+    @Query("SELECT p FROM TableauProject p WHERE p.collibraSyncStatus IN ('NOT_SYNCED', 'PENDING_SYNC', 'PENDING_UPDATE', 'PENDING_DELETE') AND p.statusFlag != 'DELETED'")
+    List<TableauProject> findAllPendingCollibraSync();
     
     /**
      * Find all projects with their site and server relationships eagerly loaded.

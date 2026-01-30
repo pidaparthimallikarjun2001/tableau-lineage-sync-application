@@ -3,6 +3,7 @@ package com.example.tableau.service;
 import com.example.tableau.config.CollibraApiConfig;
 import com.example.tableau.dto.collibra.*;
 import com.example.tableau.entity.*;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import com.example.tableau.repository.*;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
@@ -119,6 +121,92 @@ public class CollibraIngestionService {
         return result;
     }
 
+    // ======================== Collibra Sync Status Update Methods ========================
+
+    /**
+     * Update the Collibra sync status for a list of servers after successful ingestion.
+     */
+    @Transactional
+    public void updateServerCollibraSyncStatus(List<TableauServer> servers, CollibraSyncStatus status) {
+        for (TableauServer server : servers) {
+            server.setCollibraSyncStatus(status);
+            serverRepository.save(server);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} servers", status, servers.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of sites after successful ingestion.
+     */
+    @Transactional
+    public void updateSiteCollibraSyncStatus(List<TableauSite> sites, CollibraSyncStatus status) {
+        for (TableauSite site : sites) {
+            site.setCollibraSyncStatus(status);
+            siteRepository.save(site);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} sites", status, sites.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of projects after successful ingestion.
+     */
+    @Transactional
+    public void updateProjectCollibraSyncStatus(List<TableauProject> projects, CollibraSyncStatus status) {
+        for (TableauProject project : projects) {
+            project.setCollibraSyncStatus(status);
+            projectRepository.save(project);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} projects", status, projects.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of workbooks after successful ingestion.
+     */
+    @Transactional
+    public void updateWorkbookCollibraSyncStatus(List<TableauWorkbook> workbooks, CollibraSyncStatus status) {
+        for (TableauWorkbook workbook : workbooks) {
+            workbook.setCollibraSyncStatus(status);
+            workbookRepository.save(workbook);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} workbooks", status, workbooks.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of worksheets after successful ingestion.
+     */
+    @Transactional
+    public void updateWorksheetCollibraSyncStatus(List<TableauWorksheet> worksheets, CollibraSyncStatus status) {
+        for (TableauWorksheet worksheet : worksheets) {
+            worksheet.setCollibraSyncStatus(status);
+            worksheetRepository.save(worksheet);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} worksheets", status, worksheets.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of data sources after successful ingestion.
+     */
+    @Transactional
+    public void updateDataSourceCollibraSyncStatus(List<TableauDataSource> dataSources, CollibraSyncStatus status) {
+        for (TableauDataSource dataSource : dataSources) {
+            dataSource.setCollibraSyncStatus(status);
+            dataSourceRepository.save(dataSource);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} data sources", status, dataSources.size());
+    }
+
+    /**
+     * Update the Collibra sync status for a list of report attributes after successful ingestion.
+     */
+    @Transactional
+    public void updateReportAttributeCollibraSyncStatus(List<ReportAttribute> reportAttributes, CollibraSyncStatus status) {
+        for (ReportAttribute reportAttribute : reportAttributes) {
+            reportAttribute.setCollibraSyncStatus(status);
+            reportAttributeRepository.save(reportAttribute);
+        }
+        log.debug("Updated collibraSyncStatus to {} for {} report attributes", status, reportAttributes.size());
+    }
+
     /**
      * Sort projects by dependency order: parent projects before child projects.
      * While the two-phase import strategy guarantees relation success regardless of ordering,
@@ -214,6 +302,7 @@ public class CollibraIngestionService {
      * Ingest all servers to Collibra based on status flags.
      * First run: All assets ingested.
      * Subsequent runs: Only NEW, UPDATED, DELETED changes.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestServersToCollibra() {
         if (!isConfigured()) {
@@ -222,6 +311,7 @@ public class CollibraIngestionService {
 
         List<TableauServer> servers = serverRepository.findAll();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauServer> toIngest = new ArrayList<>();
         List<TableauServer> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -231,6 +321,7 @@ public class CollibraIngestionService {
             } else if (server.getStatusFlag() == StatusFlag.NEW || 
                        server.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapServerToCollibraAsset(server));
+                toIngest.add(server);
             } else {
                 skipped++;
             }
@@ -245,13 +336,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauServer> finalToIngest = toIngest;
+        final List<TableauServer> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Server")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested servers
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateServerCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getServerDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted servers (deleted from Collibra)
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateServerCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -261,6 +364,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single server to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestServerToCollibra(Long serverId) {
         if (!isConfigured()) {
@@ -270,7 +374,12 @@ public class CollibraIngestionService {
         return serverRepository.findById(serverId)
                 .map(server -> {
                     CollibraAsset asset = mapServerToCollibraAsset(server);
-                    return collibraClient.importAssets(List.of(asset), "Server");
+                    return collibraClient.importAssets(List.of(asset), "Server")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateServerCollibraSyncStatus(List.of(server), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Server", "Server not found: " + serverId)));
     }
@@ -306,6 +415,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest all sites to Collibra based on status flags.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestSitesToCollibra() {
         if (!isConfigured()) {
@@ -314,6 +424,7 @@ public class CollibraIngestionService {
 
         List<TableauSite> sites = siteRepository.findAllWithServer();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauSite> toIngest = new ArrayList<>();
         List<TableauSite> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -323,6 +434,7 @@ public class CollibraIngestionService {
             } else if (site.getStatusFlag() == StatusFlag.NEW || 
                        site.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapSiteToCollibraAsset(site));
+                toIngest.add(site);
             } else {
                 skipped++;
             }
@@ -337,13 +449,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauSite> finalToIngest = toIngest;
+        final List<TableauSite> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Site")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested sites
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateSiteCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getSiteDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted sites
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateSiteCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -353,6 +477,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single site to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestSiteToCollibra(Long siteId) {
         if (!isConfigured()) {
@@ -362,7 +487,12 @@ public class CollibraIngestionService {
         return siteRepository.findByIdWithServer(siteId)
                 .map(site -> {
                     CollibraAsset asset = mapSiteToCollibraAsset(site);
-                    return collibraClient.importAssets(List.of(asset), "Site");
+                    return collibraClient.importAssets(List.of(asset), "Site")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateSiteCollibraSyncStatus(List.of(site), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Site", "Site not found: " + siteId)));
     }
@@ -407,6 +537,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all projects to Collibra based on status flags.
      * Handles nested/child projects and their relations.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestProjectsToCollibra() {
         if (!isConfigured()) {
@@ -423,6 +554,7 @@ public class CollibraIngestionService {
         }
         
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauProject> toIngest = new ArrayList<>();
         List<TableauProject> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -432,6 +564,7 @@ public class CollibraIngestionService {
             } else if (project.getStatusFlag() == StatusFlag.NEW || 
                        project.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
+                toIngest.add(project);
             } else {
                 skipped++;
             }
@@ -447,13 +580,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauProject> finalToIngest = toIngest;
+        final List<TableauProject> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Project")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested projects
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateProjectCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getProjectDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted projects
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateProjectCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -463,6 +608,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single project to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestProjectToCollibra(Long projectId) {
         if (!isConfigured()) {
@@ -473,7 +619,12 @@ public class CollibraIngestionService {
                 .map(project -> {
                     // For single project ingestion, we still need to look up parent if needed
                     CollibraAsset asset = mapProjectToCollibraAsset(project, null);
-                    return collibraClient.importAssets(List.of(asset), "Project");
+                    return collibraClient.importAssets(List.of(asset), "Project")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateProjectCollibraSyncStatus(List.of(project), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Project", "Project not found: " + projectId)));
     }
@@ -544,6 +695,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest all workbooks to Collibra based on status flags.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestWorkbooksToCollibra() {
         if (!isConfigured()) {
@@ -552,6 +704,7 @@ public class CollibraIngestionService {
 
         List<TableauWorkbook> workbooks = workbookRepository.findAllWithProject();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorkbook> toIngest = new ArrayList<>();
         List<TableauWorkbook> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -561,6 +714,7 @@ public class CollibraIngestionService {
             } else if (workbook.getStatusFlag() == StatusFlag.NEW || 
                        workbook.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapWorkbookToCollibraAsset(workbook));
+                toIngest.add(workbook);
             } else {
                 skipped++;
             }
@@ -576,13 +730,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauWorkbook> finalToIngest = toIngest;
+        final List<TableauWorkbook> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Workbook")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested workbooks
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateWorkbookCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getWorkbookDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted workbooks
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateWorkbookCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -592,6 +758,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single workbook to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestWorkbookToCollibra(Long workbookId) {
         if (!isConfigured()) {
@@ -601,7 +768,12 @@ public class CollibraIngestionService {
         return workbookRepository.findById(workbookId)
                 .map(workbook -> {
                     CollibraAsset asset = mapWorkbookToCollibraAsset(workbook);
-                    return collibraClient.importAssets(List.of(asset), "Workbook");
+                    return collibraClient.importAssets(List.of(asset), "Workbook")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateWorkbookCollibraSyncStatus(List.of(workbook), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Workbook", "Workbook not found: " + workbookId)));
     }
@@ -660,6 +832,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest all worksheets to Collibra based on status flags.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestWorksheetsToCollibra() {
         if (!isConfigured()) {
@@ -668,6 +841,7 @@ public class CollibraIngestionService {
 
         List<TableauWorksheet> worksheets = worksheetRepository.findAllWithWorkbook();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorksheet> toIngest = new ArrayList<>();
         List<TableauWorksheet> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -677,6 +851,7 @@ public class CollibraIngestionService {
             } else if (worksheet.getStatusFlag() == StatusFlag.NEW || 
                        worksheet.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapWorksheetToCollibraAsset(worksheet));
+                toIngest.add(worksheet);
             } else {
                 skipped++;
             }
@@ -692,13 +867,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauWorksheet> finalToIngest = toIngest;
+        final List<TableauWorksheet> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Worksheet")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested worksheets
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateWorksheetCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getWorksheetDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted worksheets
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateWorksheetCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -708,6 +895,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single worksheet to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestWorksheetToCollibra(Long worksheetId) {
         if (!isConfigured()) {
@@ -717,7 +905,12 @@ public class CollibraIngestionService {
         return worksheetRepository.findById(worksheetId)
                 .map(worksheet -> {
                     CollibraAsset asset = mapWorksheetToCollibraAsset(worksheet);
-                    return collibraClient.importAssets(List.of(asset), "Worksheet");
+                    return collibraClient.importAssets(List.of(asset), "Worksheet")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateWorksheetCollibraSyncStatus(List.of(worksheet), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("Worksheet", "Worksheet not found: " + worksheetId)));
     }
@@ -762,6 +955,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest all data sources to Collibra based on status flags.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestDataSourcesToCollibra() {
         if (!isConfigured()) {
@@ -770,6 +964,7 @@ public class CollibraIngestionService {
 
         List<TableauDataSource> dataSources = dataSourceRepository.findAll();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauDataSource> toIngest = new ArrayList<>();
         List<TableauDataSource> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -779,6 +974,7 @@ public class CollibraIngestionService {
             } else if (dataSource.getStatusFlag() == StatusFlag.NEW || 
                        dataSource.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapDataSourceToCollibraAsset(dataSource));
+                toIngest.add(dataSource);
             } else {
                 skipped++;
             }
@@ -794,13 +990,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauDataSource> finalToIngest = toIngest;
+        final List<TableauDataSource> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "DataSource")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested data sources
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateDataSourceCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getDatasourceDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted data sources
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateDataSourceCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -810,6 +1018,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single data source to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestDataSourceToCollibra(Long dataSourceId) {
         if (!isConfigured()) {
@@ -819,7 +1028,12 @@ public class CollibraIngestionService {
         return dataSourceRepository.findById(dataSourceId)
                 .map(dataSource -> {
                     CollibraAsset asset = mapDataSourceToCollibraAsset(dataSource);
-                    return collibraClient.importAssets(List.of(asset), "DataSource");
+                    return collibraClient.importAssets(List.of(asset), "DataSource")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateDataSourceCollibraSyncStatus(List.of(dataSource), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("DataSource", "DataSource not found: " + dataSourceId)));
     }
@@ -874,6 +1088,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest all report attributes to Collibra based on status flags.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestReportAttributesToCollibra() {
         if (!isConfigured()) {
@@ -884,6 +1099,7 @@ public class CollibraIngestionService {
         // This prevents LazyInitializationException when mapping to Collibra assets
         List<ReportAttribute> reportAttributes = reportAttributeRepository.findAllWithRelations();
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<ReportAttribute> toIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -893,6 +1109,7 @@ public class CollibraIngestionService {
             } else if (attr.getStatusFlag() == StatusFlag.NEW || 
                        attr.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapReportAttributeToCollibraAsset(attr));
+                toIngest.add(attr);
             } else {
                 skipped++;
             }
@@ -908,13 +1125,25 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<ReportAttribute> finalToIngest = toIngest;
+        final List<ReportAttribute> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
                 .flatMap(result -> {
+                    // After importing, update collibraSyncStatus for successfully ingested report attributes
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateReportAttributeCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     // After importing, delete the marked assets
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getReportAttributeDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                // Update collibraSyncStatus to SYNCED for deleted report attributes
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateReportAttributeCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -924,6 +1153,7 @@ public class CollibraIngestionService {
 
     /**
      * Ingest a single report attribute to Collibra.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      */
     public Mono<CollibraIngestionResult> ingestReportAttributeToCollibra(Long reportAttributeId) {
         if (!isConfigured()) {
@@ -935,7 +1165,12 @@ public class CollibraIngestionService {
         return reportAttributeRepository.findByIdWithRelations(reportAttributeId)
                 .map(attr -> {
                     CollibraAsset asset = mapReportAttributeToCollibraAsset(attr);
-                    return collibraClient.importAssets(List.of(asset), "ReportAttribute");
+                    return collibraClient.importAssets(List.of(asset), "ReportAttribute")
+                            .doOnSuccess(result -> {
+                                if (result.isSuccess()) {
+                                    updateReportAttributeCollibraSyncStatus(List.of(attr), CollibraSyncStatus.SYNCED);
+                                }
+                            });
                 })
                 .orElse(Mono.just(CollibraIngestionResult.failure("ReportAttribute", "ReportAttribute not found: " + reportAttributeId)));
     }
@@ -1441,6 +1676,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all projects for a specific site to Collibra based on status flags.
      * This reduces load on Collibra by processing assets site by site.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      * 
      * @param siteId the Tableau site ID (assetId of the site)
      * @return ingestion result for projects in the specified site
@@ -1460,6 +1696,7 @@ public class CollibraIngestionService {
         }
         
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauProject> toIngest = new ArrayList<>();
         List<TableauProject> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -1469,6 +1706,7 @@ public class CollibraIngestionService {
             } else if (project.getStatusFlag() == StatusFlag.NEW || 
                        project.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapProjectToCollibraAsset(project, projectMap));
+                toIngest.add(project);
             } else {
                 skipped++;
             }
@@ -1484,12 +1722,23 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauProject> finalToIngest = toIngest;
+        final List<TableauProject> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Project")
                 .flatMap(result -> {
+                    // Update collibraSyncStatus for successfully ingested projects
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateProjectCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getProjectDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateProjectCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -1500,6 +1749,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all workbooks for a specific site to Collibra based on status flags.
      * This reduces load on Collibra by processing assets site by site.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      * 
      * @param siteId the Tableau site ID (assetId of the site)
      * @return ingestion result for workbooks in the specified site
@@ -1511,6 +1761,7 @@ public class CollibraIngestionService {
 
         List<TableauWorkbook> workbooks = workbookRepository.findAllBySiteIdWithProject(siteId);
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorkbook> toIngest = new ArrayList<>();
         List<TableauWorkbook> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -1520,6 +1771,7 @@ public class CollibraIngestionService {
             } else if (workbook.getStatusFlag() == StatusFlag.NEW || 
                        workbook.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapWorkbookToCollibraAsset(workbook));
+                toIngest.add(workbook);
             } else {
                 skipped++;
             }
@@ -1535,12 +1787,23 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauWorkbook> finalToIngest = toIngest;
+        final List<TableauWorkbook> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Workbook")
                 .flatMap(result -> {
+                    // Update collibraSyncStatus for successfully ingested workbooks
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateWorkbookCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getWorkbookDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateWorkbookCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -1551,6 +1814,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all worksheets for a specific site to Collibra based on status flags.
      * This reduces load on Collibra by processing assets site by site.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      * 
      * @param siteId the Tableau site ID (assetId of the site)
      * @return ingestion result for worksheets in the specified site
@@ -1562,6 +1826,7 @@ public class CollibraIngestionService {
 
         List<TableauWorksheet> worksheets = worksheetRepository.findAllBySiteIdWithWorkbook(siteId);
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauWorksheet> toIngest = new ArrayList<>();
         List<TableauWorksheet> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -1571,6 +1836,7 @@ public class CollibraIngestionService {
             } else if (worksheet.getStatusFlag() == StatusFlag.NEW || 
                        worksheet.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapWorksheetToCollibraAsset(worksheet));
+                toIngest.add(worksheet);
             } else {
                 skipped++;
             }
@@ -1586,12 +1852,23 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauWorksheet> finalToIngest = toIngest;
+        final List<TableauWorksheet> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "Worksheet")
                 .flatMap(result -> {
+                    // Update collibraSyncStatus for successfully ingested worksheets
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateWorksheetCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getWorksheetDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateWorksheetCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -1602,6 +1879,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all data sources for a specific site to Collibra based on status flags.
      * This reduces load on Collibra by processing assets site by site.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      * 
      * @param siteId the Tableau site ID (assetId of the site)
      * @return ingestion result for data sources in the specified site
@@ -1613,6 +1891,7 @@ public class CollibraIngestionService {
 
         List<TableauDataSource> dataSources = dataSourceRepository.findBySiteId(siteId);
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<TableauDataSource> toIngest = new ArrayList<>();
         List<TableauDataSource> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -1622,6 +1901,7 @@ public class CollibraIngestionService {
             } else if (dataSource.getStatusFlag() == StatusFlag.NEW || 
                        dataSource.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapDataSourceToCollibraAsset(dataSource));
+                toIngest.add(dataSource);
             } else {
                 skipped++;
             }
@@ -1637,12 +1917,23 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<TableauDataSource> finalToIngest = toIngest;
+        final List<TableauDataSource> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "DataSource")
                 .flatMap(result -> {
+                    // Update collibraSyncStatus for successfully ingested data sources
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateDataSourceCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getDatasourceDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateDataSourceCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;
@@ -1653,6 +1944,7 @@ public class CollibraIngestionService {
     /**
      * Ingest all report attributes for a specific site to Collibra based on status flags.
      * This reduces load on Collibra by processing assets site by site.
+     * Updates collibraSyncStatus to SYNCED after successful ingestion.
      * 
      * @param siteId the Tableau site ID (assetId of the site)
      * @return ingestion result for report attributes in the specified site
@@ -1664,6 +1956,7 @@ public class CollibraIngestionService {
 
         List<ReportAttribute> reportAttributes = reportAttributeRepository.findBySiteIdWithRelations(siteId);
         List<CollibraAsset> assetsToIngest = new ArrayList<>();
+        List<ReportAttribute> toIngest = new ArrayList<>();
         List<ReportAttribute> toDelete = new ArrayList<>();
         int skipped = 0;
 
@@ -1673,6 +1966,7 @@ public class CollibraIngestionService {
             } else if (attr.getStatusFlag() == StatusFlag.NEW || 
                        attr.getStatusFlag() == StatusFlag.UPDATED) {
                 assetsToIngest.add(mapReportAttributeToCollibraAsset(attr));
+                toIngest.add(attr);
             } else {
                 skipped++;
             }
@@ -1688,12 +1982,23 @@ public class CollibraIngestionService {
                 .toList();
 
         final int finalSkipped = skipped;
+        final List<ReportAttribute> finalToIngest = toIngest;
+        final List<ReportAttribute> finalToDelete = toDelete;
+        
         return collibraClient.importAssets(assetsToIngest, "ReportAttribute")
                 .flatMap(result -> {
+                    // Update collibraSyncStatus for successfully ingested report attributes
+                    if (result.isSuccess() && !finalToIngest.isEmpty()) {
+                        updateReportAttributeCollibraSyncStatus(finalToIngest, CollibraSyncStatus.SYNCED);
+                    }
+                    
                     return deleteAssetsFromCollibra(identifiersToDelete, 
                             collibraConfig.getReportAttributeDomainName(), 
                             collibraConfig.getCommunityName())
                             .map(deletedCount -> {
+                                if (deletedCount > 0 && !finalToDelete.isEmpty()) {
+                                    updateReportAttributeCollibraSyncStatus(finalToDelete, CollibraSyncStatus.SYNCED);
+                                }
                                 result.setAssetsDeleted(deletedCount);
                                 result.setAssetsSkipped(finalSkipped);
                                 return result;

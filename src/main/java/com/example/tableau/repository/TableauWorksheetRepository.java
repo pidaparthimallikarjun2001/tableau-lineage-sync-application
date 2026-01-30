@@ -1,6 +1,7 @@
 package com.example.tableau.repository;
 
 import com.example.tableau.entity.TableauWorksheet;
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -27,6 +28,10 @@ public interface TableauWorksheetRepository extends JpaRepository<TableauWorkshe
 
     List<TableauWorksheet> findByStatusFlagNot(StatusFlag statusFlag);
 
+    List<TableauWorksheet> findByCollibraSyncStatus(CollibraSyncStatus collibraSyncStatus);
+
+    List<TableauWorksheet> findByCollibraSyncStatusIn(List<CollibraSyncStatus> collibraSyncStatuses);
+
     @Modifying
     @Query("UPDATE TableauWorksheet w SET w.statusFlag = :statusFlag WHERE w.assetId = :assetId AND w.siteId = :siteId")
     int updateStatusFlagByAssetIdAndSiteId(@Param("assetId") String assetId, @Param("siteId") String siteId, @Param("statusFlag") StatusFlag statusFlag);
@@ -35,11 +40,26 @@ public interface TableauWorksheetRepository extends JpaRepository<TableauWorkshe
     @Query("UPDATE TableauWorksheet w SET w.statusFlag = :statusFlag WHERE w.workbook.id = :workbookDbId")
     int updateStatusFlagByWorkbookDbId(@Param("workbookDbId") Long workbookDbId, @Param("statusFlag") StatusFlag statusFlag);
 
+    @Modifying
+    @Query("UPDATE TableauWorksheet w SET w.collibraSyncStatus = :collibraSyncStatus WHERE w.assetId = :assetId AND w.siteId = :siteId")
+    int updateCollibraSyncStatusByAssetIdAndSiteId(@Param("assetId") String assetId, @Param("siteId") String siteId, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
+    @Modifying
+    @Query("UPDATE TableauWorksheet w SET w.collibraSyncStatus = :collibraSyncStatus WHERE w.id = :id")
+    int updateCollibraSyncStatusById(@Param("id") Long id, @Param("collibraSyncStatus") CollibraSyncStatus collibraSyncStatus);
+
     @Query("SELECT w FROM TableauWorksheet w WHERE w.statusFlag != 'DELETED'")
     List<TableauWorksheet> findAllActive();
 
     @Query("SELECT w FROM TableauWorksheet w WHERE w.siteId = :siteId AND w.statusFlag != 'DELETED'")
     List<TableauWorksheet> findAllActiveBySiteId(@Param("siteId") String siteId);
+
+    /**
+     * Find all worksheets that need to be synced to Collibra.
+     * Returns worksheets with collibraSyncStatus of NOT_SYNCED, PENDING_SYNC, PENDING_UPDATE, or PENDING_DELETE.
+     */
+    @Query("SELECT w FROM TableauWorksheet w WHERE w.collibraSyncStatus IN ('NOT_SYNCED', 'PENDING_SYNC', 'PENDING_UPDATE', 'PENDING_DELETE') AND w.statusFlag != 'DELETED'")
+    List<TableauWorksheet> findAllPendingCollibraSync();
 
     /**
      * Find all worksheets with their workbook relationship eagerly loaded.
