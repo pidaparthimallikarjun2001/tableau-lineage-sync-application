@@ -95,11 +95,9 @@ public abstract class BaseAssetService {
                     return CollibraSyncStatus.PENDING_UPDATE;
                 }
                 // If already NOT_SYNCED or PENDING_SYNC, it just needs initial sync
-                return currentCollibraSyncStatus == CollibraSyncStatus.SYNCED 
-                    ? CollibraSyncStatus.PENDING_UPDATE 
-                    : currentCollibraSyncStatus;
+                return currentCollibraSyncStatus;
             case DELETED:
-                // If previously synced, mark as pending delete; otherwise keep current status
+                // If previously synced or pending update, mark as pending delete; otherwise keep current status
                 if (currentCollibraSyncStatus == CollibraSyncStatus.SYNCED || 
                     currentCollibraSyncStatus == CollibraSyncStatus.PENDING_UPDATE) {
                     return CollibraSyncStatus.PENDING_DELETE;

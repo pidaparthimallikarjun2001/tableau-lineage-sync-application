@@ -130,8 +130,8 @@ public class CollibraIngestionService {
     public void updateServerCollibraSyncStatus(List<TableauServer> servers, CollibraSyncStatus status) {
         for (TableauServer server : servers) {
             server.setCollibraSyncStatus(status);
-            serverRepository.save(server);
         }
+        serverRepository.saveAll(servers);
         log.debug("Updated collibraSyncStatus to {} for {} servers", status, servers.size());
     }
 
@@ -142,8 +142,8 @@ public class CollibraIngestionService {
     public void updateSiteCollibraSyncStatus(List<TableauSite> sites, CollibraSyncStatus status) {
         for (TableauSite site : sites) {
             site.setCollibraSyncStatus(status);
-            siteRepository.save(site);
         }
+        siteRepository.saveAll(sites);
         log.debug("Updated collibraSyncStatus to {} for {} sites", status, sites.size());
     }
 
@@ -154,8 +154,8 @@ public class CollibraIngestionService {
     public void updateProjectCollibraSyncStatus(List<TableauProject> projects, CollibraSyncStatus status) {
         for (TableauProject project : projects) {
             project.setCollibraSyncStatus(status);
-            projectRepository.save(project);
         }
+        projectRepository.saveAll(projects);
         log.debug("Updated collibraSyncStatus to {} for {} projects", status, projects.size());
     }
 
@@ -166,8 +166,8 @@ public class CollibraIngestionService {
     public void updateWorkbookCollibraSyncStatus(List<TableauWorkbook> workbooks, CollibraSyncStatus status) {
         for (TableauWorkbook workbook : workbooks) {
             workbook.setCollibraSyncStatus(status);
-            workbookRepository.save(workbook);
         }
+        workbookRepository.saveAll(workbooks);
         log.debug("Updated collibraSyncStatus to {} for {} workbooks", status, workbooks.size());
     }
 
@@ -178,8 +178,8 @@ public class CollibraIngestionService {
     public void updateWorksheetCollibraSyncStatus(List<TableauWorksheet> worksheets, CollibraSyncStatus status) {
         for (TableauWorksheet worksheet : worksheets) {
             worksheet.setCollibraSyncStatus(status);
-            worksheetRepository.save(worksheet);
         }
+        worksheetRepository.saveAll(worksheets);
         log.debug("Updated collibraSyncStatus to {} for {} worksheets", status, worksheets.size());
     }
 
@@ -190,8 +190,8 @@ public class CollibraIngestionService {
     public void updateDataSourceCollibraSyncStatus(List<TableauDataSource> dataSources, CollibraSyncStatus status) {
         for (TableauDataSource dataSource : dataSources) {
             dataSource.setCollibraSyncStatus(status);
-            dataSourceRepository.save(dataSource);
         }
+        dataSourceRepository.saveAll(dataSources);
         log.debug("Updated collibraSyncStatus to {} for {} data sources", status, dataSources.size());
     }
 
@@ -202,8 +202,8 @@ public class CollibraIngestionService {
     public void updateReportAttributeCollibraSyncStatus(List<ReportAttribute> reportAttributes, CollibraSyncStatus status) {
         for (ReportAttribute reportAttribute : reportAttributes) {
             reportAttribute.setCollibraSyncStatus(status);
-            reportAttributeRepository.save(reportAttribute);
         }
+        reportAttributeRepository.saveAll(reportAttributes);
         log.debug("Updated collibraSyncStatus to {} for {} report attributes", status, reportAttributes.size());
     }
 

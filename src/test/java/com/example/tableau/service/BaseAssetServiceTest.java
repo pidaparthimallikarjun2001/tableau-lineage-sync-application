@@ -1,5 +1,6 @@
 package com.example.tableau.service;
 
+import com.example.tableau.enums.CollibraSyncStatus;
 import com.example.tableau.enums.StatusFlag;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,11 @@ class BaseAssetServiceTest {
         
         public String testGenerateMetadataHash(String... fields) {
             return generateMetadataHash(fields);
+        }
+        
+        // Expose protected method for testing CollibraSyncStatus determination
+        public CollibraSyncStatus testDetermineCollibraSyncStatus(StatusFlag newStatusFlag, CollibraSyncStatus currentCollibraSyncStatus) {
+            return determineCollibraSyncStatus(newStatusFlag, currentCollibraSyncStatus);
         }
     }
 
@@ -166,5 +172,88 @@ class BaseAssetServiceTest {
         
         assertEquals(hash1, hash2, "Same fields in same order should produce same hash");
         assertNotEquals(hash1, hash3, "Same fields in different order should produce different hash");
+    }
+
+    // ======================== CollibraSyncStatus Tests ========================
+
+    @Test
+    @DisplayName("NEW status should result in NOT_SYNCED CollibraSyncStatus")
+    void testNewStatusResultsInNotSynced() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.NEW, null);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, result, "NEW status should result in NOT_SYNCED");
+    }
+
+    @Test
+    @DisplayName("NEW status with SYNCED CollibraSyncStatus should reset to NOT_SYNCED")
+    void testNewStatusResetsToNotSynced() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.NEW, CollibraSyncStatus.SYNCED);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, result, "NEW status should reset to NOT_SYNCED");
+    }
+
+    @Test
+    @DisplayName("UPDATED status with SYNCED CollibraSyncStatus should result in PENDING_UPDATE")
+    void testUpdatedStatusWithSyncedResultsInPendingUpdate() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.UPDATED, CollibraSyncStatus.SYNCED);
+        assertEquals(CollibraSyncStatus.PENDING_UPDATE, result, "UPDATED status with SYNCED should result in PENDING_UPDATE");
+    }
+
+    @Test
+    @DisplayName("UPDATED status with NOT_SYNCED CollibraSyncStatus should remain NOT_SYNCED")
+    void testUpdatedStatusWithNotSyncedRemainsNotSynced() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.UPDATED, CollibraSyncStatus.NOT_SYNCED);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, result, "UPDATED status with NOT_SYNCED should remain NOT_SYNCED");
+    }
+
+    @Test
+    @DisplayName("DELETED status with SYNCED CollibraSyncStatus should result in PENDING_DELETE")
+    void testDeletedStatusWithSyncedResultsInPendingDelete() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.DELETED, CollibraSyncStatus.SYNCED);
+        assertEquals(CollibraSyncStatus.PENDING_DELETE, result, "DELETED status with SYNCED should result in PENDING_DELETE");
+    }
+
+    @Test
+    @DisplayName("DELETED status with PENDING_UPDATE CollibraSyncStatus should result in PENDING_DELETE")
+    void testDeletedStatusWithPendingUpdateResultsInPendingDelete() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.DELETED, CollibraSyncStatus.PENDING_UPDATE);
+        assertEquals(CollibraSyncStatus.PENDING_DELETE, result, "DELETED status with PENDING_UPDATE should result in PENDING_DELETE");
+    }
+
+    @Test
+    @DisplayName("DELETED status with NOT_SYNCED CollibraSyncStatus should remain NOT_SYNCED")
+    void testDeletedStatusWithNotSyncedRemainsNotSynced() {
+        CollibraSyncStatus result = service.testDetermineCollibraSyncStatus(StatusFlag.DELETED, CollibraSyncStatus.NOT_SYNCED);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, result, "DELETED status with NOT_SYNCED should remain NOT_SYNCED");
+    }
+
+    @Test
+    @DisplayName("ACTIVE status should keep current CollibraSyncStatus")
+    void testActiveStatusKeepsCurrentCollibraSyncStatus() {
+        CollibraSyncStatus result1 = service.testDetermineCollibraSyncStatus(StatusFlag.ACTIVE, CollibraSyncStatus.SYNCED);
+        assertEquals(CollibraSyncStatus.SYNCED, result1, "ACTIVE status with SYNCED should remain SYNCED");
+        
+        CollibraSyncStatus result2 = service.testDetermineCollibraSyncStatus(StatusFlag.ACTIVE, CollibraSyncStatus.NOT_SYNCED);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, result2, "ACTIVE status with NOT_SYNCED should remain NOT_SYNCED");
+    }
+
+    @Test
+    @DisplayName("Complete CollibraSyncStatus lifecycle")
+    void testCompleteCollibraSyncStatusLifecycle() {
+        // Step 1: New asset -> NOT_SYNCED
+        CollibraSyncStatus status1 = service.testDetermineCollibraSyncStatus(StatusFlag.NEW, null);
+        assertEquals(CollibraSyncStatus.NOT_SYNCED, status1, "Step 1: New asset should be NOT_SYNCED");
+        
+        // Step 2: After sync to Collibra, status becomes SYNCED (external action)
+        CollibraSyncStatus status2 = CollibraSyncStatus.SYNCED;
+        
+        // Step 3: Asset is updated -> PENDING_UPDATE
+        CollibraSyncStatus status3 = service.testDetermineCollibraSyncStatus(StatusFlag.UPDATED, status2);
+        assertEquals(CollibraSyncStatus.PENDING_UPDATE, status3, "Step 3: Updated asset should be PENDING_UPDATE");
+        
+        // Step 4: After re-sync to Collibra, status becomes SYNCED (external action)
+        CollibraSyncStatus status4 = CollibraSyncStatus.SYNCED;
+        
+        // Step 5: Asset is deleted -> PENDING_DELETE
+        CollibraSyncStatus status5 = service.testDetermineCollibraSyncStatus(StatusFlag.DELETED, status4);
+        assertEquals(CollibraSyncStatus.PENDING_DELETE, status5, "Step 5: Deleted asset should be PENDING_DELETE");
     }
 }
