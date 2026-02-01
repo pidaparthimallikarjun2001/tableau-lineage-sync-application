@@ -40,6 +40,7 @@ This application correctly handles multi-site scenarios using composite unique c
    - When a parent asset is marked as DELETED, all child assets are recursively soft-deleted
    - Hierarchy: Server → Site → Project → Workbook → Worksheet → Report Attributes
    - Data Sources are linked to Workbooks for embedded sources
+   - **See [SITE_SOFT_DELETION.md](SITE_SOFT_DELETION.md) for complete details on what gets deleted when a site is soft deleted**
 
 4. **REST API with Swagger UI**
    - Comprehensive API endpoints for each asset type
@@ -343,6 +344,7 @@ Comprehensive documentation is available for various aspects of the application:
 | Document | Description |
 |----------|-------------|
 | **[ASSET_ID_UNIQUENESS.md](ASSET_ID_UNIQUENESS.md)** | **Are Tableau asset IDs unique across sites?** Comprehensive explanation of ID uniqueness scoping and multi-site data integrity |
+| **[SITE_SOFT_DELETION.md](SITE_SOFT_DELETION.md)** | **What gets soft deleted when a site is deleted?** Complete cascade behavior explanation with code examples and entity hierarchy |
 | **[TABLE_SCHEMA_REFERENCE.md](TABLE_SCHEMA_REFERENCE.md)** | Detailed schema reference for `report_attribute` and `tableau_datasource` tables with column descriptions and SQL examples |
 | **[TRACKED_FIELDS.md](TRACKED_FIELDS.md)** | Which fields trigger change detection (UPDATED status) for each asset type |
 | **[IDENTIFIER_USAGE.md](IDENTIFIER_USAGE.md)** | Explanation of ID vs LUID usage across different Tableau assets |
