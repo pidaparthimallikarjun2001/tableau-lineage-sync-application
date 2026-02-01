@@ -453,7 +453,7 @@ public class CollibraRestClient {
                         log.debug("Job {} status: {}", jobId, status);
                         
                         // Check if job is still running
-                        if ("RUNNING".equals(status) || "QUEUED".equals(status) || "STARTING".equals(status)) {
+                        if ("RUNNING".equals(status) || "QUEUED".equals(status) || "STARTING".equals(status) || "WAITING".equals(status)) {
                             // Wait and poll again
                             return Mono.delay(Duration.ofSeconds(2))
                                     .flatMap(tick -> pollJobCompletionWithRetry(jobId, assetType, totalAssets, retryCount + 1));
