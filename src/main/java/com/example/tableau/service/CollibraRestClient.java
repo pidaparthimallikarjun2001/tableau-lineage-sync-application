@@ -218,20 +218,25 @@ public class CollibraRestClient {
                                 log.info("PHASE 2 complete: {} assets updated with relations successfully", 
                                         phase2Result.getTotalProcessed());
                                 
-                                // Return combined result
+                                // Combine results from both phases
+                                // Phase 1: Assets created without relations
+                                // Phase 2: Assets updated with relations added
                                 return CollibraIngestionResult.builder()
                                         .assetType(assetType)
                                         .totalProcessed(phase2Result.getTotalProcessed())
-                                        // Use Phase 1's created count (assets created in Phase 1)
-                                        // Phase 2 updates those assets, so assetsUpdated = assetsCreated
-                                        .assetsCreated(phase1Result.getAssetsCreated())
-                                        .assetsUpdated(phase2Result.getTotalProcessed())
+                                        // Use Phase 1's created count + Phase 2's created count (if any new assets)
+                                        .assetsCreated(phase1Result.getAssetsCreated() + phase2Result.getAssetsCreated())
+                                        // Use Phase 2's updated count (assets updated with relations)
+                                        .assetsUpdated(phase2Result.getAssetsUpdated())
+                                        // Use Phase 2's relations count (all relations created in Phase 2)
+                                        .relationsCreated(phase2Result.getRelationsCreated())
                                         .assetsDeleted(0)
                                         .assetsSkipped(0)
                                         .success(true)
                                         .message("Two-phase import completed successfully: " +
-                                                phase1Result.getTotalProcessed() + " assets created (Phase 1), " +
-                                                phase2Result.getTotalProcessed() + " assets updated with relations (Phase 2)")
+                                                (phase1Result.getAssetsCreated() + phase2Result.getAssetsCreated()) + " assets created (Phase 1), " +
+                                                phase2Result.getAssetsUpdated() + " assets updated with relations (Phase 2), " +
+                                                phase2Result.getRelationsCreated() + " relations created")
                                         .jobId(phase2Result.getJobId())
                                         .build();
                             });
@@ -338,6 +343,7 @@ public class CollibraRestClient {
                 .totalProcessed(result1.getTotalProcessed() + result2.getTotalProcessed())
                 .assetsCreated(result1.getAssetsCreated() + result2.getAssetsCreated())
                 .assetsUpdated(result1.getAssetsUpdated() + result2.getAssetsUpdated())
+                .relationsCreated(result1.getRelationsCreated() + result2.getRelationsCreated())
                 .assetsDeleted(result1.getAssetsDeleted() + result2.getAssetsDeleted())
                 .assetsSkipped(result1.getAssetsSkipped() + result2.getAssetsSkipped())
                 .success(overallSuccess)
@@ -348,6 +354,7 @@ public class CollibraRestClient {
 
     /**
      * Import a single batch of assets (internal method).
+     * Submits the import job and polls for completion to get accurate results.
      */
     private Mono<CollibraIngestionResult> importAssetsBatch(List<CollibraAsset> assets, String assetType) {
         if (!isConfigured()) {
@@ -382,22 +389,136 @@ public class CollibraRestClient {
                     .body(BodyInserters.fromMultipartData(body))
                     .retrieve()
                     .bodyToMono(JsonNode.class)
-                    .map(response -> {
-                        log.info("Collibra import response: {}", response);
+                    .flatMap(response -> {
+                        log.info("Collibra import job submitted: {}", response);
                         String jobId = response.path("id").asText(null);
-                        return CollibraIngestionResult.builder()
-                                .assetType(assetType)
-                                .totalProcessed(assets.size())
-                                .assetsCreated(assets.size()) // Will be refined based on actual response
-                                .success(true)
-                                .message("Import job submitted successfully")
-                                .jobId(jobId)
-                                .build();
+                        
+                        if (jobId == null) {
+                            log.error("No job ID returned from Collibra import API");
+                            return Mono.just(CollibraIngestionResult.failure(assetType, 
+                                "No job ID returned from Collibra import API"));
+                        }
+                        
+                        // Poll for job completion and get accurate results
+                        return pollJobCompletion(jobId, assetType, assets.size());
                     })
                     .onErrorResume(e -> handleError(e, assetType));
 
         } catch (JsonProcessingException e) {
             return handleJsonSerializationError(e, assetType, "import payload");
+        }
+    }
+
+    /**
+     * Poll for job completion and extract actual results.
+     * Polls the Collibra jobs endpoint until the job completes, then extracts
+     * accurate counts of assets created, updated, and relations created.
+     * 
+     * @param jobId the job ID to poll
+     * @param assetType the type of assets being imported
+     * @param totalAssets the total number of assets submitted
+     * @return the ingestion result with actual counts from Collibra
+     */
+    private Mono<CollibraIngestionResult> pollJobCompletion(String jobId, String assetType, int totalAssets) {
+        return Mono.defer(() -> {
+            log.debug("Polling job status for job ID: {}", jobId);
+            return webClient.get()
+                    .uri("/rest/2.0/jobs/{jobId}", jobId)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .flatMap(jobStatus -> {
+                        String status = jobStatus.path("state").asText("");
+                        log.debug("Job {} status: {}", jobId, status);
+                        
+                        // Check if job is still running
+                        if ("RUNNING".equals(status) || "QUEUED".equals(status) || "STARTING".equals(status)) {
+                            // Wait and poll again
+                            return Mono.delay(Duration.ofSeconds(2))
+                                    .flatMap(tick -> pollJobCompletion(jobId, assetType, totalAssets));
+                        }
+                        
+                        // Job completed - extract results
+                        if ("SUCCESS".equals(status) || "COMPLETED".equals(status)) {
+                            return parseJobResult(jobStatus, assetType, totalAssets, jobId);
+                        }
+                        
+                        // Job failed or completed with errors
+                        if ("COMPLETED_WITH_ERROR".equals(status)) {
+                            // Still parse results but note the errors
+                            return parseJobResult(jobStatus, assetType, totalAssets, jobId)
+                                    .map(result -> {
+                                        // Extract error messages if available
+                                        String errorMsg = jobStatus.path("message").asText("Import completed with errors");
+                                        log.warn("Job {} completed with errors: {}", jobId, errorMsg);
+                                        result.setMessage("Import completed with errors: " + errorMsg);
+                                        return result;
+                                    });
+                        }
+                        
+                        if ("FAILURE".equals(status) || "ABORTED".equals(status) || "CANCELLED".equals(status)) {
+                            String errorMsg = jobStatus.path("message").asText("Job failed");
+                            log.error("Job {} failed with status {}: {}", jobId, status, errorMsg);
+                            return Mono.just(CollibraIngestionResult.failure(assetType, 
+                                    "Import job failed with status " + status + ": " + errorMsg));
+                        }
+                        
+                        // Unknown status
+                        log.warn("Job {} has unknown status: {}", jobId, status);
+                        return Mono.just(CollibraIngestionResult.failure(assetType, 
+                                "Unknown job status: " + status));
+                    })
+                    .onErrorResume(e -> {
+                        log.error("Failed to poll job status for {}: {}", jobId, e.getMessage());
+                        return Mono.just(CollibraIngestionResult.failure(assetType, 
+                                "Failed to poll job status: " + e.getMessage()));
+                    });
+        });
+    }
+    
+    /**
+     * Parse job result to extract actual counts of assets created, updated, and relations created.
+     * 
+     * @param jobStatus the job status response from Collibra
+     * @param assetType the type of assets being imported
+     * @param totalAssets the total number of assets submitted
+     * @param jobId the job ID
+     * @return the ingestion result with actual counts
+     */
+    private Mono<CollibraIngestionResult> parseJobResult(JsonNode jobStatus, String assetType, int totalAssets, String jobId) {
+        try {
+            // Extract actual counts from job result
+            int assetsCreated = jobStatus.path("result").path("assetsCreated").asInt(0);
+            int assetsUpdated = jobStatus.path("result").path("assetsUpdated").asInt(0);
+            int relationsCreated = jobStatus.path("result").path("relationsCreated").asInt(0);
+            
+            log.info("Job {} completed successfully: {} assets created, {} assets updated, {} relations created",
+                    jobId, assetsCreated, assetsUpdated, relationsCreated);
+            
+            return Mono.just(CollibraIngestionResult.builder()
+                    .assetType(assetType)
+                    .totalProcessed(totalAssets)
+                    .assetsCreated(assetsCreated)
+                    .assetsUpdated(assetsUpdated)
+                    .relationsCreated(relationsCreated)
+                    .assetsDeleted(0)
+                    .assetsSkipped(0)
+                    .success(true)
+                    .message("Import completed successfully")
+                    .jobId(jobId)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to parse job result for {}: {}", jobId, e.getMessage());
+            // Fallback to default counts
+            return Mono.just(CollibraIngestionResult.builder()
+                    .assetType(assetType)
+                    .totalProcessed(totalAssets)
+                    .assetsCreated(0)
+                    .assetsUpdated(0)
+                    .relationsCreated(0)
+                    .success(true)
+                    .message("Import completed but failed to parse result counts")
+                    .jobId(jobId)
+                    .build());
         }
     }
 

@@ -65,11 +65,17 @@ class CollibraRestClientBatchTest {
         // Create a small list of assets (less than batch size)
         List<CollibraAsset> assets = createTestAssets(5);
 
-        // Mock the server response
+        // Mock the import job submission response
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-123\"}"));
+        
+        // Mock the job status polling response (completed successfully)
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-123\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":5,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
 
         // Execute the import
         CollibraIngestionResult result = collibraClient.importAssets(assets, "TestAsset").block();
@@ -78,10 +84,13 @@ class CollibraRestClientBatchTest {
         assertNotNull(result);
         assertTrue(result.isSuccess());
         assertEquals(5, result.getTotalProcessed());
+        assertEquals(5, result.getAssetsCreated());
+        assertEquals(0, result.getAssetsUpdated());
+        assertEquals(0, result.getRelationsCreated());
         assertEquals("job-123", result.getJobId());
 
-        // Verify only one request was made
-        assertEquals(1, mockWebServer.getRequestCount());
+        // Verify two requests were made (import + job status poll)
+        assertEquals(2, mockWebServer.getRequestCount());
     }
 
     @Test
@@ -89,7 +98,8 @@ class CollibraRestClientBatchTest {
         // Create a large list of assets (more than batch size)
         List<CollibraAsset> assets = createTestAssets(25); // Will be split into 3 batches (10, 10, 5)
 
-        // Mock the server responses for each batch
+        // Mock the server responses for each batch (import + job status)
+        // Batch 1
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -97,11 +107,27 @@ class CollibraRestClientBatchTest {
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-1\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":10,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
+        
+        // Batch 2
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-2\"}"));
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-2\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":10,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
+        
+        // Batch 3
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-3\"}"));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-3\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":5,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
 
         // Execute the import
         CollibraIngestionResult result = collibraClient.importAssets(assets, "TestAsset").block();
@@ -110,19 +136,28 @@ class CollibraRestClientBatchTest {
         assertNotNull(result);
         assertTrue(result.isSuccess());
         assertEquals(25, result.getTotalProcessed());
+        assertEquals(25, result.getAssetsCreated()); // Sum of all batches
+        assertEquals(0, result.getAssetsUpdated());
+        assertEquals(0, result.getRelationsCreated());
         assertEquals("job-3", result.getJobId()); // Last job ID
 
-        // Verify three requests were made (one per batch)
-        assertEquals(3, mockWebServer.getRequestCount());
+        // Verify six requests were made (3 imports + 3 job status polls)
+        assertEquals(6, mockWebServer.getRequestCount());
 
         // Verify each request had the correct batch size
         RecordedRequest request1 = mockWebServer.takeRequest();
         RecordedRequest request2 = mockWebServer.takeRequest();
         RecordedRequest request3 = mockWebServer.takeRequest();
+        RecordedRequest request4 = mockWebServer.takeRequest();
+        RecordedRequest request5 = mockWebServer.takeRequest();
+        RecordedRequest request6 = mockWebServer.takeRequest();
 
         assertNotNull(request1);
         assertNotNull(request2);
         assertNotNull(request3);
+        assertNotNull(request4);
+        assertNotNull(request5);
+        assertNotNull(request6);
     }
 
     @Test
@@ -130,11 +165,17 @@ class CollibraRestClientBatchTest {
         // Create exactly one batch worth of assets
         List<CollibraAsset> assets = createTestAssets(10);
 
-        // Mock the server response
+        // Mock the import job submission response
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-123\"}"));
+        
+        // Mock the job status polling response
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-123\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":10,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
 
         // Execute the import
         CollibraIngestionResult result = collibraClient.importAssets(assets, "TestAsset").block();
@@ -143,9 +184,10 @@ class CollibraRestClientBatchTest {
         assertNotNull(result);
         assertTrue(result.isSuccess());
         assertEquals(10, result.getTotalProcessed());
+        assertEquals(10, result.getAssetsCreated());
 
-        // Verify only one request was made
-        assertEquals(1, mockWebServer.getRequestCount());
+        // Verify two requests were made (import + job status poll)
+        assertEquals(2, mockWebServer.getRequestCount());
     }
 
     @Test
@@ -170,7 +212,8 @@ class CollibraRestClientBatchTest {
         // Create assets with custom batch size
         List<CollibraAsset> assets = createTestAssets(15);
 
-        // Mock the server responses for custom batch size of 7
+        // Mock the server responses for custom batch size of 7 (3 batches: 7, 7, 1)
+        // Batch 1
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -178,11 +221,27 @@ class CollibraRestClientBatchTest {
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-1\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":7,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
+        
+        // Batch 2
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-2\"}"));
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-2\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":7,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
+        
+        // Batch 3
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-3\"}"));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-3\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":1,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
 
         // Execute the import with custom batch size (7: will create 3 batches: 7, 7, 1)
         CollibraIngestionResult result = collibraClient.importAssets(assets, "TestAsset", 7).block();
@@ -191,9 +250,10 @@ class CollibraRestClientBatchTest {
         assertNotNull(result);
         assertTrue(result.isSuccess());
         assertEquals(15, result.getTotalProcessed());
+        assertEquals(15, result.getAssetsCreated());
 
-        // Verify three requests were made
-        assertEquals(3, mockWebServer.getRequestCount());
+        // Verify six requests were made (3 imports + 3 job status polls)
+        assertEquals(6, mockWebServer.getRequestCount());
     }
 
     @Test
@@ -201,11 +261,17 @@ class CollibraRestClientBatchTest {
         // Create assets for multiple batches
         List<CollibraAsset> assets = createTestAssets(15);
 
-        // Mock success for first batch, failure for second
+        // Mock success for first batch
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(200)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .setBody("{\"id\":\"job-1\"}"));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody("{\"id\":\"job-1\",\"state\":\"SUCCESS\",\"result\":{\"assetsCreated\":10,\"assetsUpdated\":0,\"relationsCreated\":0}}"));
+        
+        // Mock failure for second batch (500 error)
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(500)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
