@@ -209,13 +209,15 @@ public class ReportAttributeService extends BaseAssetService {
                                     // Update foreign key relationships even if metadata hash hasn't changed
                                     // to ensure database referential integrity
                                     boolean needsSave = false;
-                                    if ((attr.getWorksheet() == null && worksheet != null) ||
-                                        (attr.getWorksheet() != null && worksheet != null && !attr.getWorksheet().getId().equals(worksheet.getId()))) {
+                                    
+                                    // Update worksheet FK if it has changed or needs to be set/cleared
+                                    if (!areEntitiesEqual(attr.getWorksheet(), worksheet)) {
                                         attr.setWorksheet(worksheet);
                                         needsSave = true;
                                     }
-                                    if ((attr.getDataSource() == null && dataSource != null) ||
-                                        (attr.getDataSource() != null && dataSource != null && !attr.getDataSource().getId().equals(dataSource.getId()))) {
+                                    
+                                    // Update datasource FK if it has changed or needs to be set/cleared
+                                    if (!areEntitiesEqual(attr.getDataSource(), dataSource)) {
                                         attr.setDataSource(dataSource);
                                         needsSave = true;
                                     }
@@ -387,5 +389,34 @@ public class ReportAttributeService extends BaseAssetService {
             sb.append("Formula: ").append(calc.path("formula").asText());
         }
         return sb.toString();
+    }
+
+    /**
+     * Check if two entities are equal based on their IDs.
+     * Handles null cases: returns true if both are null, false if only one is null.
+     * 
+     * @param current The current entity (may be null)
+     * @param newEntity The new entity (may be null)
+     * @param <T> Entity type with getId() method
+     * @return true if entities are equal (same ID or both null), false otherwise
+     */
+    private <T> boolean areEntitiesEqual(T current, T newEntity) {
+        // Both null - equal
+        if (current == null && newEntity == null) {
+            return true;
+        }
+        // One null, one not - not equal
+        if (current == null || newEntity == null) {
+            return false;
+        }
+        // Both non-null - compare IDs using reflection to get getId()
+        try {
+            Long currentId = (Long) current.getClass().getMethod("getId").invoke(current);
+            Long newId = (Long) newEntity.getClass().getMethod("getId").invoke(newEntity);
+            return currentId != null && currentId.equals(newId);
+        } catch (Exception e) {
+            log.warn("Failed to compare entity IDs, assuming not equal: {}", e.getMessage());
+            return false;
+        }
     }
 }
