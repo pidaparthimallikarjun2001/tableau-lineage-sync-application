@@ -420,8 +420,30 @@ public class CollibraRestClient {
      * @return the ingestion result with actual counts from Collibra
      */
     private Mono<CollibraIngestionResult> pollJobCompletion(String jobId, String assetType, int totalAssets) {
+        return pollJobCompletionWithRetry(jobId, assetType, totalAssets, 0);
+    }
+    
+    /**
+     * Internal method for polling with retry count tracking.
+     * 
+     * @param jobId the job ID to poll
+     * @param assetType the type of assets being imported
+     * @param totalAssets the total number of assets submitted
+     * @param retryCount current retry count
+     * @return the ingestion result with actual counts from Collibra
+     */
+    private Mono<CollibraIngestionResult> pollJobCompletionWithRetry(String jobId, String assetType, int totalAssets, int retryCount) {
+        // Maximum retries: 300 * 2 seconds = 10 minutes max wait
+        final int MAX_RETRIES = 300;
+        
+        if (retryCount >= MAX_RETRIES) {
+            log.error("Job {} polling timeout after {} retries ({}s)", jobId, MAX_RETRIES, MAX_RETRIES * 2);
+            return Mono.just(CollibraIngestionResult.failure(assetType, 
+                    "Job polling timeout after " + (MAX_RETRIES * 2) + " seconds for job " + jobId));
+        }
+        
         return Mono.defer(() -> {
-            log.debug("Polling job status for job ID: {}", jobId);
+            log.debug("Polling job status for job ID: {} (attempt {}/{})", jobId, retryCount + 1, MAX_RETRIES);
             return webClient.get()
                     .uri("/rest/2.0/jobs/{jobId}", jobId)
                     .retrieve()
@@ -434,7 +456,7 @@ public class CollibraRestClient {
                         if ("RUNNING".equals(status) || "QUEUED".equals(status) || "STARTING".equals(status)) {
                             // Wait and poll again
                             return Mono.delay(Duration.ofSeconds(2))
-                                    .flatMap(tick -> pollJobCompletion(jobId, assetType, totalAssets));
+                                    .flatMap(tick -> pollJobCompletionWithRetry(jobId, assetType, totalAssets, retryCount + 1));
                         }
                         
                         // Job completed - extract results
@@ -444,14 +466,24 @@ public class CollibraRestClient {
                         
                         // Job failed or completed with errors
                         if ("COMPLETED_WITH_ERROR".equals(status)) {
-                            // Still parse results but note the errors
+                            // Still parse results but include error message
+                            String errorMsg = jobStatus.path("message").asText("Import completed with errors");
+                            log.warn("Job {} completed with errors: {}", jobId, errorMsg);
                             return parseJobResult(jobStatus, assetType, totalAssets, jobId)
                                     .map(result -> {
-                                        // Extract error messages if available
-                                        String errorMsg = jobStatus.path("message").asText("Import completed with errors");
-                                        log.warn("Job {} completed with errors: {}", jobId, errorMsg);
-                                        result.setMessage("Import completed with errors: " + errorMsg);
-                                        return result;
+                                        // Rebuild result with error message
+                                        return CollibraIngestionResult.builder()
+                                                .assetType(result.getAssetType())
+                                                .totalProcessed(result.getTotalProcessed())
+                                                .assetsCreated(result.getAssetsCreated())
+                                                .assetsUpdated(result.getAssetsUpdated())
+                                                .relationsCreated(result.getRelationsCreated())
+                                                .assetsDeleted(0)
+                                                .assetsSkipped(0)
+                                                .success(result.isSuccess())
+                                                .message("Import completed with errors: " + errorMsg)
+                                                .jobId(result.getJobId())
+                                                .build();
                                     });
                         }
                         
