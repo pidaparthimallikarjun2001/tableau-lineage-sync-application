@@ -208,16 +208,16 @@ public class ReportAttributeService extends BaseAssetService {
                                 } else {
                                     // Update foreign key relationships even if metadata hash hasn't changed
                                     // to ensure database referential integrity
-                                    boolean fkChanged = false;
+                                    boolean needsSave = false;
                                     if ((attr.getWorksheet() == null && worksheet != null) ||
                                         (attr.getWorksheet() != null && worksheet != null && !attr.getWorksheet().getId().equals(worksheet.getId()))) {
                                         attr.setWorksheet(worksheet);
-                                        fkChanged = true;
+                                        needsSave = true;
                                     }
                                     if ((attr.getDataSource() == null && dataSource != null) ||
                                         (attr.getDataSource() != null && dataSource != null && !attr.getDataSource().getId().equals(dataSource.getId()))) {
                                         attr.setDataSource(dataSource);
-                                        fkChanged = true;
+                                        needsSave = true;
                                     }
                                     
                                     // Use the status determined by determineStatusFlag method
@@ -225,10 +225,10 @@ public class ReportAttributeService extends BaseAssetService {
                                         attr.getStatusFlag() != StatusFlag.DELETED) {
                                         attr.setStatusFlag(newStatus);
                                         attr.setCollibraSyncStatus(determineCollibraSyncStatus(newStatus, attr.getCollibraSyncStatus()));
-                                        fkChanged = true;
+                                        needsSave = true;
                                     }
                                     
-                                    if (fkChanged) {
+                                    if (needsSave) {
                                         reportAttributeRepository.save(attr);
                                     }
                                     unchangedCount++;

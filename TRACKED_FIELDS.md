@@ -214,12 +214,14 @@ For **Custom SQL Data Sources:**
 - Asset ID
 - Name (field name)
 - Worksheet ID
-- Data Source ID
+- Data Source ID (Tableau asset ID, not database FK)
 - Field Role (dimension, measure, etc.)
 - Is Calculated (true/false)
 - Calculation Logic/Formula
 - Lineage Information (upstream fields)
 - Site ID
+
+**Note on Foreign Keys:** The metadata hash uses Tableau asset IDs (like `source_datasource_id`) to detect changes, not database foreign key IDs (`datasource_fk_id`, `worksheet_fk_id`). However, foreign key relationships are updated during every ingestion to maintain database referential integrity, regardless of whether the metadata hash has changed.
 
 **Example changes that trigger UPDATED:**
 1. **Rename a field:**
